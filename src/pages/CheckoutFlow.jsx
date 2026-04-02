@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Link, Navigate, useSearchParams } from 'react-router-dom';
+import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { fetchSeatsByAircraftId, submitFinalBooking } from '../api/apiService';
 import useBookingStore from '../store/useBookingStore';
 
@@ -47,13 +47,15 @@ const normalizeSeats = (responseData) => {
 };
 
 function CheckoutFlow() {
+  const location = useLocation();
+  const navigate = useNavigate();
   const [searchParams] = useSearchParams();
 
   const selectedSchedule = useBookingStore((state) => state.selectedSchedule);
   const selectedScheduleId = useBookingStore((state) => state.selectedScheduleId);
   const passengers = useBookingStore((state) => state.passengers);
   const selectedSeatIds = useBookingStore((state) => state.selectedSeatIds);
-  const totalPrice = useBookingStore((state) => state.totalPrice);
+  const getTotalPrice = useBookingStore((state) => state.getTotalPrice);
   const clearCart = useBookingStore((state) => state.clearCart);
 
   const [seatNumberMap, setSeatNumberMap] = useState({});
@@ -85,6 +87,20 @@ function CheckoutFlow() {
 
   const hasSeatPassengerMismatch = passengers.length !== selectedSeatIds.length;
   const mismatchErrorMessage = `Mismatch: You have ${passengers.length} passengers but ${selectedSeatIds.length} seats selected. Please go back and adjust your seats.`;
+  const derivedTotalPrice = getTotalPrice();
+  const hasValidCheckoutState = selectedSeatIds.length === passengers.length && derivedTotalPrice > 0;
+
+  useEffect(() => {
+    if (isSuccess) {
+      return;
+    }
+
+    const queryString = location.search;
+
+    if (!selectedSchedule || scheduleId == null || !hasValidCheckoutState) {
+      navigate(queryString ? `/book/seats${queryString}` : '/book/seats', { replace: true });
+    }
+  }, [isSuccess, selectedSchedule, scheduleId, hasValidCheckoutState, location.search, navigate]);
 
   useEffect(() => {
     let isMounted = true;
@@ -136,10 +152,7 @@ function CheckoutFlow() {
     return selectedSeatIds.map((seatId) => seatNumberMap[String(seatId)] || `Seat ${seatId}`);
   }, [selectedSeatIds, seatNumberMap]);
 
-  const displayTotal = useMemo(() => {
-    const parsedTotal = Number(totalPrice);
-    return Number.isFinite(parsedTotal) ? parsedTotal : 0;
-  }, [totalPrice]);
+  const displayTotal = Number.isFinite(derivedTotalPrice) ? derivedTotalPrice : 0;
 
   if (isSuccess) {
     return (
@@ -166,8 +179,8 @@ function CheckoutFlow() {
     );
   }
 
-  if (!selectedSchedule || scheduleId == null) {
-    return <Navigate to="/" replace />;
+  if (!selectedSchedule || scheduleId == null || !hasValidCheckoutState) {
+    return null;
   }
 
   const handlePaymentFieldChange = (event) => {

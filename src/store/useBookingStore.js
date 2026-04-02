@@ -5,10 +5,9 @@ const getInitialState = () => ({
   selectedScheduleId: null,
   passengers: [],
   selectedSeatIds: [],
-  totalPrice: 0,
 });
 
-const useBookingStore = create((set) => ({
+const useBookingStore = create((set, get) => ({
   ...getInitialState(),
 
   setSchedule: (schedule) => {
@@ -21,7 +20,6 @@ const useBookingStore = create((set) => ({
       selectedSchedule: schedule,
       selectedScheduleId: schedule.schedule_id,
       selectedSeatIds: [],
-      totalPrice: 0,
     });
   },
 
@@ -53,9 +51,7 @@ const useBookingStore = create((set) => ({
     });
   },
 
-  setTotalPrice: (totalPrice) => {
-    set({ totalPrice });
-  },
+  getTotalPrice: () => get().selectedSeatIds.length * 150,
 
   clearCart: () => {
     set(getInitialState());

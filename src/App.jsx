@@ -1,29 +1,22 @@
-import { BrowserRouter, NavLink, Navigate, Route, Routes } from 'react-router-dom';
+import { BrowserRouter, Navigate, Route, Routes, useNavigate } from 'react-router-dom';
 import SearchForm from './components/SearchForm';
 import Results from './pages/Results';
 import PassengerDetails from './pages/PassengerDetails';
 import SeatSelection from './pages/SeatSelection';
 import CheckoutFlow from './pages/CheckoutFlow';
-
-const navItems = [
-  { to: '/', label: 'Home' },
-  { to: '/results', label: 'Results' },
-  { to: '/book/passengers', label: 'Passengers' },
-  { to: '/book/seats', label: 'Seats' },
-  { to: '/book/checkout', label: 'Checkout' },
-  { to: '/admin', label: 'Admin' },
-];
-
-const navLinkClassName = ({ isActive }) => {
-  const baseClass = 'rounded-lg px-3 py-2 text-sm font-medium transition';
-  const stateClass = isActive
-    ? 'bg-sky-100 text-sky-700'
-    : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900';
-
-  return `${baseClass} ${stateClass}`;
-};
+import Landing from './pages/Landing';
+import CustomerLogin from './pages/CustomerLogin';
+import useBookingStore from './store/useBookingStore';
 
 function Navbar() {
+  const navigate = useNavigate();
+  const clearCart = useBookingStore((state) => state.clearCart);
+
+  const handleSignOut = () => {
+    clearCart();
+    navigate('/', { replace: true });
+  };
+
   return (
     <header className="sticky top-0 z-30 border-b border-slate-200 bg-white/90 backdrop-blur">
       <div className="mx-auto flex w-full max-w-7xl flex-wrap items-center justify-between gap-3 px-4 py-3 sm:px-6 lg:px-8">
@@ -32,13 +25,13 @@ function Navbar() {
           <h1 className="text-lg font-semibold tracking-tight text-slate-900">Customer and Admin Portal</h1>
         </div>
 
-        <nav className="flex flex-wrap items-center gap-1" aria-label="Primary">
-          {navItems.map((item) => (
-            <NavLink key={item.to} to={item.to} className={navLinkClassName} end={item.to === '/'}>
-              {item.label}
-            </NavLink>
-          ))}
-        </nav>
+        <button
+          type="button"
+          onClick={handleSignOut}
+          className="inline-flex h-10 items-center justify-center rounded-xl border border-slate-300 bg-white px-4 text-sm font-semibold text-slate-700 transition hover:border-slate-400 hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400 focus-visible:ring-offset-2"
+        >
+          Sign Out
+        </button>
       </div>
     </header>
   );
@@ -67,7 +60,9 @@ function App() {
 
         <main>
           <Routes>
-            <Route path="/" element={<HomePage />} />
+            <Route path="/" element={<Landing />} />
+            <Route path="/login" element={<CustomerLogin />} />
+            <Route path="/home" element={<HomePage />} />
             <Route path="/results" element={<Results />} />
             <Route path="/book/passengers" element={<PassengerDetails />} />
             <Route path="/book/seats" element={<SeatSelection />} />

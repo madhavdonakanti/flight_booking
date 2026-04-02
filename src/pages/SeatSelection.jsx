@@ -1,10 +1,8 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Link, Navigate, useNavigate, useSearchParams } from 'react-router-dom';
+import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { fetchBookedSeatIdsByScheduleId, fetchSeatsByAircraftId } from '../api/apiService';
 import SeatMap from '../components/SeatMap';
 import useBookingStore from '../store/useBookingStore';
-
-const FLAT_SEAT_RATE = 150;
 
 const getScheduleId = (selectedSchedule, selectedScheduleId) => {
   if (selectedSchedule?.schedule_id != null) {
@@ -39,6 +37,7 @@ const normalizeSeats = (responseData) => {
 };
 
 function SeatSelection() {
+  const location = useLocation();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
 
@@ -46,7 +45,6 @@ function SeatSelection() {
   const selectedScheduleId = useBookingStore((state) => state.selectedScheduleId);
   const passengers = useBookingStore((state) => state.passengers);
   const selectedSeatIds = useBookingStore((state) => state.selectedSeatIds);
-  const setTotalPrice = useBookingStore((state) => state.setTotalPrice);
 
   const [allSeats, setAllSeats] = useState([]);
   const [bookedSeatIds, setBookedSeatIds] = useState([]);
@@ -74,8 +72,16 @@ function SeatSelection() {
   }, [passengers.length, searchParams]);
 
   useEffect(() => {
-    setTotalPrice(selectedSeatIds.length * FLAT_SEAT_RATE);
-  }, [selectedSeatIds.length, setTotalPrice]);
+    if (!selectedSchedule) {
+      navigate('/home', { replace: true });
+      return;
+    }
+
+    if (passengers.length === 0) {
+      const queryString = location.search;
+      navigate(queryString ? `/book/passengers${queryString}` : '/book/passengers', { replace: true });
+    }
+  }, [selectedSchedule, passengers.length, location.search, navigate]);
 
   useEffect(() => {
     let isMounted = true;
@@ -126,8 +132,8 @@ function SeatSelection() {
     };
   }, [aircraftId, scheduleId]);
 
-  if (!selectedSchedule) {
-    return <Navigate to="/" replace />;
+  if (!selectedSchedule || passengers.length === 0) {
+    return null;
   }
 
   const handleProceedToCheckout = () => {

@@ -44,6 +44,7 @@ function PassengerDetails() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
 
+  const selectedSchedule = useBookingStore((state) => state.selectedSchedule);
   const storedPassengers = useBookingStore((state) => state.passengers);
   const setPassengers = useBookingStore((state) => state.setPassengers);
 
@@ -70,6 +71,16 @@ function PassengerDetails() {
   useEffect(() => {
     setPassengerForms(initialPassengerForms);
   }, [initialPassengerForms]);
+
+  useEffect(() => {
+    if (!selectedSchedule) {
+      navigate('/home', { replace: true });
+    }
+  }, [selectedSchedule, navigate]);
+
+  if (!selectedSchedule) {
+    return null;
+  }
 
   const handlePassengerFieldChange = (index, field, value) => {
     setPassengerForms((prev) =>

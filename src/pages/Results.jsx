@@ -101,7 +101,7 @@ function Results() {
           </div>
 
           <Link
-            to="/"
+            to="/home"
             className="inline-flex h-11 items-center justify-center rounded-xl border border-slate-300 px-5 text-sm font-semibold text-slate-700 transition hover:border-slate-400 hover:bg-slate-50"
           >
             Modify Search
