@@ -5,6 +5,27 @@ const USE_MOCK_DATA_ON_ERROR = import.meta.env.VITE_USE_MOCK_DATA_ON_ERROR !== '
 const SEAT_LETTERS = ['A', 'B', 'C', 'D', 'E', 'F'];
 const mockScheduleAircraftMap = new Map();
 
+const createRandomBookingId = () => {
+  return String(Math.floor(1000000000 + Math.random() * 9000000000));
+};
+
+const ensureBookingId = (booking) => {
+  if (!booking || typeof booking !== 'object') {
+    return {
+      booking_id: createRandomBookingId(),
+    };
+  }
+
+  if (booking.booking_id != null && String(booking.booking_id).trim()) {
+    return booking;
+  }
+
+  return {
+    ...booking,
+    booking_id: createRandomBookingId(),
+  };
+};
+
 const apiClient = axios.create({
   baseURL: apiBaseUrl,
   headers: {
@@ -95,6 +116,23 @@ const createMockBookedSeatIds = (scheduleId, aircraftId) => {
   const base = numericAircraftId * 1000;
 
   return [base + 11 + seatOffset, base + 24 + seatOffset, base + 37 + seatOffset];
+};
+
+const createMockBookingForUser = ({ name, email, phone }) => {
+  return {
+    booking_id: createRandomBookingId(),
+    booking_date: new Date().toISOString(),
+    total_amount: 650,
+    status: 'confirmed',
+    user: {
+      name,
+      email,
+      phone,
+    },
+    seats: ['12A', '12B'],
+    schedule_id: 9101,
+    source: 'mock',
+  };
 };
 
 const shouldUseMockFallback = (error) => {
@@ -217,13 +255,13 @@ export const submitFinalBooking = async ({
     };
 
     const { data } = await apiClient.post('bookings/finalize/', payload);
-    return data;
+    return ensureBookingId(data);
   } catch (error) {
     if (shouldUseMockFallback(error)) {
       logMockFallback('submitFinalBooking', error);
 
       return {
-        booking_id: `MOCK-${Date.now()}`,
+        booking_id: createRandomBookingId(),
         booking_date: new Date().toISOString(),
         total_amount: seatIds.length * 150,
         status: 'confirmed',
@@ -232,6 +270,28 @@ export const submitFinalBooking = async ({
     }
 
     handleApiError('submitFinalBooking', error, 'Unable to complete booking. Please try again.');
+  }
+};
+
+export const fetchBookingsByUser = async ({ name, email, phone }) => {
+  try {
+    const { data } = await apiClient.get('bookings/', {
+      params: {
+        name,
+        email,
+        phone,
+      },
+    });
+
+    const bookings = Array.isArray(data) ? data : data?.results ?? [];
+    return bookings.map((booking) => ensureBookingId(booking));
+  } catch (error) {
+    if (shouldUseMockFallback(error)) {
+      logMockFallback('fetchBookingsByUser', error);
+      return [createMockBookingForUser({ name, email, phone })];
+    }
+
+    handleApiError('fetchBookingsByUser', error, 'Unable to fetch bookings. Please try again.');
   }
 };
 

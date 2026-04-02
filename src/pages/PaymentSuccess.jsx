@@ -2,12 +2,39 @@ import { useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import useBookingStore from '../store/useBookingStore';
 
+const formatDateTime = (value) => {
+  if (!value) {
+    return 'Not available';
+  }
+
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) {
+    return value;
+  }
+
+  return new Intl.DateTimeFormat('en-US', {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+  }).format(parsed);
+};
+
 function PaymentSuccess() {
-  const clearCart = useBookingStore((state) => state.clearCart);
+  const lastBooking = useBookingStore((state) => state.lastBooking);
+  const clearBookingProgress = useBookingStore((state) => state.clearBookingProgress);
 
   useEffect(() => {
-    clearCart();
-  }, [clearCart]);
+    clearBookingProgress();
+  }, [clearBookingProgress]);
+
+  const bookingIdLabel =
+    lastBooking?.booking_id != null ? String(lastBooking.booking_id) : 'Not available';
+  const bookingDateLabel = formatDateTime(lastBooking?.booking_date);
+  const bookingTotal = Number(lastBooking?.total_amount);
+  const bookingTotalLabel = Number.isFinite(bookingTotal) ? `$${bookingTotal.toFixed(2)}` : 'Not available';
+  const bookingSeats = Array.isArray(lastBooking?.seats) ? lastBooking.seats : [];
 
   return (
     <section className="mx-auto flex min-h-[calc(100vh-84px)] w-full max-w-5xl items-center px-4 py-10 sm:px-6 lg:px-8">
@@ -18,6 +45,31 @@ function PaymentSuccess() {
 
         <h2 className="mt-6 text-4xl font-semibold tracking-tight text-emerald-900">Payment Successful</h2>
         <p className="mt-3 text-base text-emerald-800">Your tickets have been issued.</p>
+
+        <div className="mt-6 rounded-2xl border border-emerald-200 bg-white/80 p-5 text-left">
+          <h3 className="text-sm font-semibold uppercase tracking-wide text-emerald-700">Booking Details</h3>
+          <div className="mt-3 space-y-2 text-sm text-emerald-900">
+            <p>
+              <span className="font-semibold">Booking ID:</span> {bookingIdLabel}
+            </p>
+            <p>
+              <span className="font-semibold">Booking Date:</span> {bookingDateLabel}
+            </p>
+            <p>
+              <span className="font-semibold">Route:</span> {lastBooking?.route_code || 'Not available'}
+            </p>
+            <p>
+              <span className="font-semibold">Passengers:</span> {lastBooking?.passenger_count ?? 'Not available'}
+            </p>
+            <p>
+              <span className="font-semibold">Total Paid:</span> {bookingTotalLabel}
+            </p>
+            <p>
+              <span className="font-semibold">Seats:</span>{' '}
+              {bookingSeats.length > 0 ? bookingSeats.join(', ') : 'Not available'}
+            </p>
+          </div>
+        </div>
 
         <div className="mt-8">
           <Link

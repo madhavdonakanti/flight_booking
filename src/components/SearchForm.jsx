@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 
 const initialFormData = {
   origin: '',
@@ -153,7 +153,14 @@ function SearchForm() {
               </p>
             ) : null}
 
-            <div className="flex justify-end pt-1">
+            <div className="flex flex-wrap items-center justify-between gap-3 pt-1">
+              <Link
+                to="/find-booking"
+                className="inline-flex h-12 items-center justify-center rounded-xl border border-slate-300 bg-white px-6 text-sm font-semibold text-slate-700 transition hover:border-slate-400 hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400 focus-visible:ring-offset-2"
+              >
+                Find booking
+              </Link>
+
               <button
                 type="submit"
                 className="inline-flex h-12 items-center justify-center rounded-xl bg-sky-600 px-8 text-sm font-semibold text-white shadow-lg shadow-sky-600/25 transition hover:bg-sky-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 focus-visible:ring-offset-2"

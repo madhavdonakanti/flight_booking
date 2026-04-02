@@ -15,6 +15,7 @@ const getInitialState = () => ({
   selectedSchedule: null,
   selectedScheduleId: null,
   userDetails: null,
+  lastBooking: null,
   passengers: [],
   // [{ passengerIndex: number, seatId: string|number }]
   selectedSeatIds: [],
@@ -51,6 +52,15 @@ const useBookingStore = create((set, get) => ({
         phone: String(details.phone ?? '').trim(),
       },
     });
+  },
+
+  setLastBooking: (booking) => {
+    if (!booking || typeof booking !== 'object') {
+      set({ lastBooking: null });
+      return;
+    }
+
+    set({ lastBooking: booking });
   },
 
   addPassenger: (passenger) => {
@@ -138,6 +148,16 @@ const useBookingStore = create((set, get) => ({
       const matchingSeat = seatById.get(String(assignment?.seatId));
       return sum + getSeatClassFare(matchingSeat?.seat_class);
     }, 0);
+  },
+
+  clearBookingProgress: () => {
+    set({
+      selectedSchedule: null,
+      selectedScheduleId: null,
+      passengers: [],
+      selectedSeatIds: [],
+      allSeats: [],
+    });
   },
 
   clearCart: () => {

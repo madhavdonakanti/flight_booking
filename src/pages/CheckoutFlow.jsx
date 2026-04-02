@@ -57,7 +57,7 @@ function CheckoutFlow() {
   const passengers = useBookingStore((state) => state.passengers);
   const selectedSeatAssignments = useBookingStore((state) => state.selectedSeatIds);
   const getTotalPrice = useBookingStore((state) => state.getTotalPrice);
-  const clearCart = useBookingStore((state) => state.clearCart);
+  const setLastBooking = useBookingStore((state) => state.setLastBooking);
 
   const [seatNumberMap, setSeatNumberMap] = useState({});
   const [isSeatLoading, setIsSeatLoading] = useState(false);
@@ -211,11 +211,22 @@ function CheckoutFlow() {
         phone: userDetails.phone.trim(),
       };
 
-      await submitFinalBooking({
+      const bookingResponse = await submitFinalBooking({
         user,
         passengers,
         selectedScheduleId: scheduleId,
         selectedSeatAssignments,
+      });
+
+      setLastBooking({
+        booking_id: bookingResponse?.booking_id,
+        booking_date: bookingResponse?.booking_date || new Date().toISOString(),
+        total_amount: bookingResponse?.total_amount ?? displayTotal,
+        status: bookingResponse?.status || 'confirmed',
+        route_code: routeCode,
+        seats: selectedSeatNumbers,
+        passenger_count: passengers.length,
+        user,
       });
 
       navigate('/success', { replace: true });
