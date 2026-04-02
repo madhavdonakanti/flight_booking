@@ -191,14 +191,29 @@ export const submitFinalBooking = async ({
   user,
   passengers,
   selectedScheduleId,
-  selectedSeatIds,
+  selectedSeatAssignments,
 }) => {
+  const normalizedSeatAssignments = Array.isArray(selectedSeatAssignments)
+    ? selectedSeatAssignments
+        .filter(
+          (entry) => Number.isInteger(entry?.passengerIndex) && entry?.seatId != null
+        )
+        .map((entry) => ({
+          passenger_index: entry.passengerIndex,
+          seat_id: entry.seatId,
+        }))
+        .sort((a, b) => a.passenger_index - b.passenger_index)
+    : [];
+
+  const seatIds = normalizedSeatAssignments.map((entry) => entry.seat_id);
+
   try {
     const payload = {
       user,
       passengers,
       schedule_id: selectedScheduleId,
-      seat_ids: selectedSeatIds,
+      seat_ids: seatIds,
+      seat_assignments: normalizedSeatAssignments,
     };
 
     const { data } = await apiClient.post('bookings/finalize/', payload);
@@ -210,7 +225,7 @@ export const submitFinalBooking = async ({
       return {
         booking_id: `MOCK-${Date.now()}`,
         booking_date: new Date().toISOString(),
-        total_amount: selectedSeatIds.length * 150,
+        total_amount: seatIds.length * 150,
         status: 'confirmed',
         source: 'mock',
       };

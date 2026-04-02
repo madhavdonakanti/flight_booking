@@ -1,11 +1,14 @@
-import useBookingStore from '../store/useBookingStore';
-
 const normalizeId = (value) => String(value);
+const formatSeatClassLabel = (seatClass) => {
+  if (typeof seatClass !== 'string' || !seatClass.trim()) {
+    return 'Economy';
+  }
 
-function SeatMap({ allSeats = [], bookedSeatIds = [] }) {
-  const selectedSeatIds = useBookingStore((state) => state.selectedSeatIds);
-  const toggleSeatSelection = useBookingStore((state) => state.toggleSeatSelection);
+  const normalized = seatClass.trim().toLowerCase();
+  return normalized.charAt(0).toUpperCase() + normalized.slice(1);
+};
 
+function SeatMap({ allSeats = [], bookedSeatIds = [], selectedSeatIds = [], onSeatHover, onSeatSelect }) {
   const bookedSeatSet = new Set(bookedSeatIds.map(normalizeId));
   const selectedSeatSet = new Set(selectedSeatIds.map(normalizeId));
 
@@ -15,12 +18,20 @@ function SeatMap({ allSeats = [], bookedSeatIds = [] }) {
     return seatA.localeCompare(seatB, undefined, { numeric: true, sensitivity: 'base' });
   });
 
-  const handleSeatClick = (seatId, isBooked) => {
+  const handleSeatHover = (seat) => {
+    if (typeof onSeatHover === 'function') {
+      onSeatHover(seat);
+    }
+  };
+
+  const handleSeatClick = (seat, isBooked) => {
     if (isBooked) {
       return;
     }
 
-    toggleSeatSelection(seatId);
+    if (typeof onSeatSelect === 'function') {
+      onSeatSelect(seat);
+    }
   };
 
   return (
@@ -69,18 +80,16 @@ function SeatMap({ allSeats = [], bookedSeatIds = [] }) {
               <button
                 key={seatIdKey}
                 type="button"
-                onClick={() => handleSeatClick(seatId, isBooked)}
+                onClick={() => handleSeatClick(seat, isBooked)}
+                onMouseEnter={() => handleSeatHover(seat)}
+                onFocus={() => handleSeatHover(seat)}
                 disabled={isBooked}
                 className={`flex h-14 flex-col items-center justify-center rounded-lg border text-xs font-semibold transition ${seatStyle}`}
                 aria-pressed={isSelected && !isBooked}
                 aria-label={`Seat ${seat?.seat_number || seatIdKey}`}
+                title={`${seat?.seat_number || `Seat ${seatIdKey}`} | ${formatSeatClassLabel(seat?.seat_class)}`}
               >
                 <span>{seat?.seat_number || `Seat ${seatIdKey}`}</span>
-                {seat?.seat_class ? (
-                  <span className="mt-0.5 text-[10px] font-medium uppercase tracking-wide opacity-90">
-                    {seat.seat_class}
-                  </span>
-                ) : null}
               </button>
             );
           })}

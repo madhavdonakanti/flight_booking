@@ -53,8 +53,9 @@ function CheckoutFlow() {
 
   const selectedSchedule = useBookingStore((state) => state.selectedSchedule);
   const selectedScheduleId = useBookingStore((state) => state.selectedScheduleId);
+  const userDetails = useBookingStore((state) => state.userDetails);
   const passengers = useBookingStore((state) => state.passengers);
-  const selectedSeatIds = useBookingStore((state) => state.selectedSeatIds);
+  const selectedSeatAssignments = useBookingStore((state) => state.selectedSeatIds);
   const getTotalPrice = useBookingStore((state) => state.getTotalPrice);
   const clearCart = useBookingStore((state) => state.clearCart);
 
@@ -62,7 +63,6 @@ function CheckoutFlow() {
   const [isSeatLoading, setIsSeatLoading] = useState(false);
   const [submitError, setSubmitError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [isSuccess, setIsSuccess] = useState(false);
   const [paymentForm, setPaymentForm] = useState({
     cardholderName: '',
     cardNumber: '',
@@ -85,22 +85,33 @@ function CheckoutFlow() {
     });
   }, [passengers]);
 
-  const hasSeatPassengerMismatch = passengers.length !== selectedSeatIds.length;
-  const mismatchErrorMessage = `Mismatch: You have ${passengers.length} passengers but ${selectedSeatIds.length} seats selected. Please go back and adjust your seats.`;
+  const assignedPassengerCount = useMemo(() => {
+    return new Set(selectedSeatAssignments.map((entry) => entry?.passengerIndex)).size;
+  }, [selectedSeatAssignments]);
+
+  const assignedSeatCount = useMemo(() => {
+    return new Set(selectedSeatAssignments.map((entry) => String(entry?.seatId))).size;
+  }, [selectedSeatAssignments]);
+
+  const hasSeatPassengerMismatch =
+    selectedSeatAssignments.length !== passengers.length ||
+    assignedPassengerCount !== passengers.length ||
+    assignedSeatCount !== selectedSeatAssignments.length;
+  const mismatchErrorMessage =
+    'Seat assignment mismatch. Please ensure every passenger has exactly one unique seat.';
   const derivedTotalPrice = getTotalPrice();
-  const hasValidCheckoutState = selectedSeatIds.length === passengers.length && derivedTotalPrice > 0;
+  const hasValidUserDetails = Boolean(
+    userDetails?.name?.trim() && userDetails?.email?.trim() && userDetails?.phone?.trim()
+  );
+  const hasValidCheckoutState = !hasSeatPassengerMismatch && derivedTotalPrice > 0;
 
   useEffect(() => {
-    if (isSuccess) {
-      return;
-    }
-
     const queryString = location.search;
 
     if (!selectedSchedule || scheduleId == null || !hasValidCheckoutState) {
       navigate(queryString ? `/book/seats${queryString}` : '/book/seats', { replace: true });
     }
-  }, [isSuccess, selectedSchedule, scheduleId, hasValidCheckoutState, location.search, navigate]);
+  }, [selectedSchedule, scheduleId, hasValidCheckoutState, location.search, navigate]);
 
   useEffect(() => {
     let isMounted = true;
@@ -149,35 +160,17 @@ function CheckoutFlow() {
   }, [aircraftId]);
 
   const selectedSeatNumbers = useMemo(() => {
-    return selectedSeatIds.map((seatId) => seatNumberMap[String(seatId)] || `Seat ${seatId}`);
-  }, [selectedSeatIds, seatNumberMap]);
+    return [...selectedSeatAssignments]
+      .sort((a, b) => (a?.passengerIndex ?? 0) - (b?.passengerIndex ?? 0))
+      .map((assignment) => {
+        const seatId = assignment?.seatId;
+        const passengerLabel = `P${(assignment?.passengerIndex ?? 0) + 1}`;
+        const seatLabel = seatNumberMap[String(seatId)] || `Seat ${seatId}`;
+        return `${passengerLabel}: ${seatLabel}`;
+      });
+  }, [selectedSeatAssignments, seatNumberMap]);
 
   const displayTotal = Number.isFinite(derivedTotalPrice) ? derivedTotalPrice : 0;
-
-  if (isSuccess) {
-    return (
-      <section className="mx-auto w-full max-w-4xl px-4 py-10 sm:px-6 lg:px-8">
-        <div className="rounded-3xl border border-emerald-200 bg-emerald-50 p-8 text-center shadow-[0_20px_60px_-28px_rgba(16,185,129,0.55)]">
-          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-emerald-700">Booking Confirmed</p>
-          <h2 className="mt-2 text-3xl font-semibold tracking-tight text-emerald-900">
-            Your flight has been booked successfully.
-          </h2>
-          <p className="mt-3 text-sm text-emerald-800 sm:text-base">
-            A confirmation summary will be available from your dashboard once backend integration is complete.
-          </p>
-
-          <div className="mt-6">
-            <Link
-              to="/"
-              className="inline-flex h-11 items-center justify-center rounded-xl bg-emerald-600 px-6 text-sm font-semibold text-white transition hover:bg-emerald-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-600 focus-visible:ring-offset-2"
-            >
-              Book Another Flight
-            </Link>
-          </div>
-        </div>
-      </section>
-    );
-  }
 
   if (!selectedSchedule || scheduleId == null || !hasValidCheckoutState) {
     return null;
@@ -198,8 +191,13 @@ function CheckoutFlow() {
       return;
     }
 
-    if (passengers.length === 0 || selectedSeatIds.length === 0) {
+    if (passengers.length === 0 || selectedSeatAssignments.length === 0) {
       setSubmitError('Passengers and seat selections are required before final checkout.');
+      return;
+    }
+
+    if (!hasValidUserDetails) {
+      setSubmitError('Guest details are missing. Please go back and complete your details first.');
       return;
     }
 
@@ -207,22 +205,21 @@ function CheckoutFlow() {
     setIsSubmitting(true);
 
     try {
-      // Temporary mock user payload until auth/profile flow is implemented.
       const user = {
-        name: paymentForm.cardholderName.trim() || 'Guest User',
-        email: 'guest@example.com',
-        phone: '',
+        name: userDetails.name.trim(),
+        email: userDetails.email.trim(),
+        phone: userDetails.phone.trim(),
       };
 
       await submitFinalBooking({
         user,
         passengers,
         selectedScheduleId: scheduleId,
-        selectedSeatIds,
+        selectedSeatAssignments,
       });
 
       clearCart();
-      setIsSuccess(true);
+      navigate('/success');
     } catch (error) {
       const message = typeof error === 'string' ? error : 'Unable to complete booking. Please try again.';
       setSubmitError(message);

@@ -1,10 +1,24 @@
 import { create } from 'zustand';
 
+const BUSINESS_FARE = 500;
+const ECONOMY_FARE = 150;
+
+const getSeatClassFare = (seatClass) => {
+  if (typeof seatClass === 'string' && seatClass.trim().toLowerCase() === 'business') {
+    return BUSINESS_FARE;
+  }
+
+  return ECONOMY_FARE;
+};
+
 const getInitialState = () => ({
   selectedSchedule: null,
   selectedScheduleId: null,
+  userDetails: null,
   passengers: [],
+  // [{ passengerIndex: number, seatId: string|number }]
   selectedSeatIds: [],
+  allSeats: [],
 });
 
 const useBookingStore = create((set, get) => ({
@@ -20,6 +34,22 @@ const useBookingStore = create((set, get) => ({
       selectedSchedule: schedule,
       selectedScheduleId: schedule.schedule_id,
       selectedSeatIds: [],
+      allSeats: [],
+    });
+  },
+
+  setUserDetails: (details) => {
+    if (!details || typeof details !== 'object') {
+      set({ userDetails: null });
+      return;
+    }
+
+    set({
+      userDetails: {
+        name: String(details.name ?? '').trim(),
+        email: String(details.email ?? '').trim(),
+        phone: String(details.phone ?? '').trim(),
+      },
     });
   },
 
@@ -30,7 +60,13 @@ const useBookingStore = create((set, get) => ({
   },
 
   setPassengers: (passengers) => {
-    set({ passengers });
+    set((state) => ({
+      passengers,
+      selectedSeatIds: state.selectedSeatIds.filter(
+        (assignment) =>
+          Number.isInteger(assignment?.passengerIndex) && assignment.passengerIndex < passengers.length
+      ),
+    }));
   },
 
   removePassenger: (passengerIndex) => {
@@ -39,19 +75,70 @@ const useBookingStore = create((set, get) => ({
     }));
   },
 
-  toggleSeatSelection: (seatId) => {
-    set((state) => {
-      const isSelected = state.selectedSeatIds.includes(seatId);
+  setAllSeats: (allSeats) => {
+    set({ allSeats: Array.isArray(allSeats) ? allSeats : [] });
+  },
 
-      return {
-        selectedSeatIds: isSelected
-          ? state.selectedSeatIds.filter((id) => id !== seatId)
-          : [...state.selectedSeatIds, seatId],
-      };
+  toggleSeatSelection: (passengerIndex, seatId) => {
+    const { selectedSeatIds, passengers } = get();
+    if (!Number.isInteger(passengerIndex) || passengerIndex < 0 || passengerIndex >= passengers.length) {
+      return;
+    }
+
+    const currentPassengerAssignment = selectedSeatIds.find(
+      (assignment) => assignment.passengerIndex === passengerIndex
+    );
+    const isSelected = currentPassengerAssignment?.seatId === seatId;
+
+    if (isSelected) {
+      set({
+        selectedSeatIds: selectedSeatIds.filter(
+          (assignment) => assignment.passengerIndex !== passengerIndex
+        ),
+      });
+      return;
+    }
+
+    const isSeatAssignedToAnotherPassenger = selectedSeatIds.some(
+      (assignment) => assignment.seatId === seatId && assignment.passengerIndex !== passengerIndex
+    );
+
+    if (isSeatAssignedToAnotherPassenger) {
+      if (typeof window !== 'undefined') {
+        window.alert('This seat is already assigned to another passenger.');
+      }
+      return;
+    }
+
+    const nextAssignments = selectedSeatIds.filter(
+      (assignment) => assignment.passengerIndex !== passengerIndex
+    );
+
+    nextAssignments.push({ passengerIndex, seatId });
+
+    set({
+      selectedSeatIds: nextAssignments,
     });
   },
 
-  getTotalPrice: () => get().selectedSeatIds.length * 150,
+  getTotalPrice: () => {
+    const { selectedSeatIds, allSeats } = get();
+
+    if (selectedSeatIds.length === 0) {
+      return 0;
+    }
+
+    const seatById = new Map(
+      allSeats
+        .filter((seat) => seat?.seat_id != null)
+        .map((seat) => [String(seat.seat_id), seat])
+    );
+
+    return selectedSeatIds.reduce((sum, assignment) => {
+      const matchingSeat = seatById.get(String(assignment?.seatId));
+      return sum + getSeatClassFare(matchingSeat?.seat_class);
+    }, 0);
+  },
 
   clearCart: () => {
     set(getInitialState());

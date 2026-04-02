@@ -36,6 +36,15 @@ const normalizeSeats = (responseData) => {
   return [];
 };
 
+const formatSeatClassLabel = (seatClass) => {
+  if (typeof seatClass !== 'string' || !seatClass.trim()) {
+    return 'Economy';
+  }
+
+  const normalized = seatClass.trim().toLowerCase();
+  return normalized.charAt(0).toUpperCase() + normalized.slice(1);
+};
+
 function SeatSelection() {
   const location = useLocation();
   const navigate = useNavigate();
@@ -45,12 +54,16 @@ function SeatSelection() {
   const selectedScheduleId = useBookingStore((state) => state.selectedScheduleId);
   const passengers = useBookingStore((state) => state.passengers);
   const selectedSeatIds = useBookingStore((state) => state.selectedSeatIds);
+  const setAllSeatsInStore = useBookingStore((state) => state.setAllSeats);
+  const toggleSeatSelection = useBookingStore((state) => state.toggleSeatSelection);
 
   const [allSeats, setAllSeats] = useState([]);
   const [bookedSeatIds, setBookedSeatIds] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
   const [selectionError, setSelectionError] = useState('');
+  const [activeSeatDetails, setActiveSeatDetails] = useState(null);
+  const [activePassengerIndex, setActivePassengerIndex] = useState(0);
 
   const scheduleId = useMemo(
     () => getScheduleId(selectedSchedule, selectedScheduleId),
@@ -71,6 +84,40 @@ function SeatSelection() {
     return 0;
   }, [passengers.length, searchParams]);
 
+  const seatById = useMemo(() => {
+    return new Map(
+      allSeats
+        .filter((seat) => seat?.seat_id != null)
+        .map((seat) => [String(seat.seat_id), seat])
+    );
+  }, [allSeats]);
+
+  const selectedSeatOnlyIds = useMemo(() => {
+    return selectedSeatIds
+      .map((assignment) => assignment?.seatId)
+      .filter((seatId) => seatId != null);
+  }, [selectedSeatIds]);
+
+  const passengerSeatAssignments = useMemo(() => {
+    return passengers.map((passenger, passengerIndex) => {
+      const assignment = selectedSeatIds.find((entry) => entry?.passengerIndex === passengerIndex);
+      const seatId = assignment?.seatId;
+      const seat = seatId != null ? seatById.get(String(seatId)) : null;
+
+      return {
+        passengerIndex,
+        passenger,
+        seatId,
+        seatLabel: seat?.seat_number || (seatId != null ? `Seat ${seatId}` : 'Not assigned'),
+        seatClass: formatSeatClassLabel(seat?.seat_class),
+      };
+    });
+  }, [passengers, selectedSeatIds, seatById]);
+
+  const assignedPassengerCount = useMemo(() => {
+    return new Set(selectedSeatIds.map((entry) => entry?.passengerIndex)).size;
+  }, [selectedSeatIds]);
+
   useEffect(() => {
     if (!selectedSchedule) {
       navigate('/home', { replace: true });
@@ -82,6 +129,25 @@ function SeatSelection() {
       navigate(queryString ? `/book/passengers${queryString}` : '/book/passengers', { replace: true });
     }
   }, [selectedSchedule, passengers.length, location.search, navigate]);
+
+  useEffect(() => {
+    if (passengers.length === 0) {
+      setActivePassengerIndex(0);
+      return;
+    }
+
+    setActivePassengerIndex((prev) => {
+      if (prev < 0) {
+        return 0;
+      }
+
+      if (prev >= passengers.length) {
+        return passengers.length - 1;
+      }
+
+      return prev;
+    });
+  }, [passengers.length]);
 
   useEffect(() => {
     let isMounted = true;
@@ -106,7 +172,9 @@ function SeatSelection() {
           return;
         }
 
-        setAllSeats(normalizeSeats(seatsResponse));
+        const normalizedSeats = normalizeSeats(seatsResponse);
+        setAllSeats(normalizedSeats);
+        setAllSeatsInStore(normalizedSeats);
         setBookedSeatIds(Array.isArray(bookedIdsResponse) ? bookedIdsResponse : []);
       } catch (error) {
         if (!isMounted) {
@@ -117,6 +185,7 @@ function SeatSelection() {
           typeof error === 'string' ? error : 'Unable to load seats for this flight. Please try again.';
         setErrorMessage(message);
         setAllSeats([]);
+        setAllSeatsInStore([]);
         setBookedSeatIds([]);
       } finally {
         if (isMounted) {
@@ -130,7 +199,7 @@ function SeatSelection() {
     return () => {
       isMounted = false;
     };
-  }, [aircraftId, scheduleId]);
+  }, [aircraftId, scheduleId, setAllSeatsInStore]);
 
   if (!selectedSchedule || passengers.length === 0) {
     return null;
@@ -142,9 +211,9 @@ function SeatSelection() {
       return;
     }
 
-    if (selectedSeatIds.length !== expectedPassengerCount) {
+    if (assignedPassengerCount !== expectedPassengerCount) {
       setSelectionError(
-        `Please select exactly ${expectedPassengerCount} seat${expectedPassengerCount > 1 ? 's' : ''}.`
+        `Please assign exactly one seat to each of the ${expectedPassengerCount} passenger${expectedPassengerCount > 1 ? 's' : ''}.`
       );
       return;
     }
@@ -157,6 +226,48 @@ function SeatSelection() {
 
   const routeCode =
     selectedSchedule?.route_code || selectedSchedule?.flight?.route_code || 'Selected Route';
+
+  const handleSeatFocusChange = (seat) => {
+    if (!seat || seat.seat_id == null) {
+      setActiveSeatDetails(null);
+      return;
+    }
+
+    setActiveSeatDetails({
+      seatNumber: seat.seat_number || `Seat ${seat.seat_id}`,
+      seatClass: formatSeatClassLabel(seat.seat_class),
+    });
+  };
+
+  const handleSeatSelection = (seat) => {
+    if (!seat || seat.seat_id == null) {
+      return;
+    }
+
+    const seatId = seat.seat_id;
+    const isSeatAssignedElsewhere = selectedSeatIds.some(
+      (entry) => String(entry?.seatId) === String(seatId) && entry?.passengerIndex !== activePassengerIndex
+    );
+    const currentAssignment = selectedSeatIds.find(
+      (entry) => entry?.passengerIndex === activePassengerIndex
+    );
+    const isDeselectAction = currentAssignment?.seatId === seatId;
+
+    toggleSeatSelection(activePassengerIndex, seatId);
+    handleSeatFocusChange(seat);
+
+    if (isDeselectAction || isSeatAssignedElsewhere) {
+      return;
+    }
+
+    const nextUnassigned = passengerSeatAssignments.find(
+      (entry) => entry.passengerIndex !== activePassengerIndex && entry.seatId == null
+    );
+
+    if (nextUnassigned) {
+      setActivePassengerIndex(nextUnassigned.passengerIndex);
+    }
+  };
 
   return (
     <section className="mx-auto w-full max-w-6xl px-4 py-8 sm:px-6 lg:px-8">
@@ -185,17 +296,71 @@ function SeatSelection() {
           </p>
         ) : null}
 
+        <div className="mb-4 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4">
+          <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Passenger Seat Assignments</p>
+          <div className="mt-3 grid grid-cols-1 gap-2 md:grid-cols-2">
+            {passengerSeatAssignments.map((entry) => {
+              const firstName = entry.passenger?.first_name?.trim() || 'First';
+              const lastName = entry.passenger?.last_name?.trim() || 'Last';
+              const isActive = entry.passengerIndex === activePassengerIndex;
+
+              return (
+                <button
+                  key={`passenger-seat-${entry.passengerIndex}`}
+                  type="button"
+                  onClick={() => setActivePassengerIndex(entry.passengerIndex)}
+                  className={`rounded-xl border px-4 py-3 text-left transition ${
+                    isActive
+                      ? 'border-sky-500 bg-sky-50 ring-2 ring-sky-200'
+                      : 'border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50'
+                  }`}
+                >
+                  <p className="text-sm font-semibold text-slate-900">
+                    Passenger {entry.passengerIndex + 1}: {firstName} {lastName}
+                  </p>
+                  <p className="mt-1 text-xs text-slate-600">
+                    {entry.seatId != null
+                      ? `${entry.seatLabel} | ${entry.seatClass}`
+                      : 'Seat not assigned'}
+                  </p>
+                </button>
+              );
+            })}
+          </div>
+          <p className="mt-3 text-sm text-slate-600">
+            Currently assigning seat for Passenger {activePassengerIndex + 1}.
+          </p>
+        </div>
+
         {isLoading ? (
           <div className="flex items-center justify-center rounded-2xl border border-slate-200 bg-slate-50 px-5 py-16 text-sm font-medium text-slate-600">
             Loading seat map...
           </div>
         ) : (
-          <SeatMap allSeats={allSeats} bookedSeatIds={bookedSeatIds} />
+          <SeatMap
+            allSeats={allSeats}
+            bookedSeatIds={bookedSeatIds}
+            selectedSeatIds={selectedSeatOnlyIds}
+            onSeatHover={handleSeatFocusChange}
+            onSeatSelect={handleSeatSelection}
+          />
         )}
+
+        <div className="mt-4 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
+          {activeSeatDetails ? (
+            <p className="text-sm font-medium text-slate-700">
+              {activeSeatDetails.seatNumber} | Class: {activeSeatDetails.seatClass}
+            </p>
+          ) : (
+            <p className="text-sm text-slate-600">
+              Hover over or click a seat to view its class. Business seats are $500 and Economy seats are $150.
+            </p>
+          )}
+        </div>
 
         <div className="mt-5 flex items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
           <p className="text-sm font-medium text-slate-700">
-            Selected {selectedSeatIds.length} of {expectedPassengerCount || 0} required seat
+            Assigned {assignedPassengerCount} of {expectedPassengerCount || 0} required seat
             {expectedPassengerCount === 1 ? '' : 's'}.
           </p>
 

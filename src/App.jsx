@@ -6,6 +6,7 @@ import SeatSelection from './pages/SeatSelection';
 import CheckoutFlow from './pages/CheckoutFlow';
 import Landing from './pages/Landing';
 import CustomerLogin from './pages/CustomerLogin';
+import PaymentSuccess from './pages/PaymentSuccess';
 import useBookingStore from './store/useBookingStore';
 
 function Navbar() {
@@ -67,6 +68,7 @@ function App() {
             <Route path="/book/passengers" element={<PassengerDetails />} />
             <Route path="/book/seats" element={<SeatSelection />} />
             <Route path="/book/checkout" element={<CheckoutFlow />} />
+            <Route path="/success" element={<PaymentSuccess />} />
             <Route
               path="/admin"
               element={
