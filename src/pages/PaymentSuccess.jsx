@@ -1,6 +1,14 @@
+import { useEffect } from 'react';
 import { Link } from 'react-router-dom';
+import useBookingStore from '../store/useBookingStore';
 
 function PaymentSuccess() {
+  const clearCart = useBookingStore((state) => state.clearCart);
+
+  useEffect(() => {
+    clearCart();
+  }, [clearCart]);
+
   return (
     <section className="mx-auto flex min-h-[calc(100vh-84px)] w-full max-w-5xl items-center px-4 py-10 sm:px-6 lg:px-8">
       <div className="mx-auto w-full max-w-2xl rounded-3xl border border-emerald-200 bg-emerald-50 p-8 text-center shadow-[0_24px_70px_-30px_rgba(16,185,129,0.45)] sm:p-10">

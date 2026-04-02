@@ -218,8 +218,7 @@ function CheckoutFlow() {
         selectedSeatAssignments,
       });
 
-      clearCart();
-      navigate('/success');
+      navigate('/success', { replace: true });
     } catch (error) {
       const message = typeof error === 'string' ? error : 'Unable to complete booking. Please try again.';
       setSubmitError(message);
