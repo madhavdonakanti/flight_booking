@@ -82,3 +82,29 @@ Default API root: `http://localhost:8000/api/`
 - Seat conflicts return `409` with `error: "SEAT_TAKEN"`.
 - Payment failures return `402` with `error: "PAYMENT_FAILED"`.
 - Generic validation failures return `400` with `error: "INVALID_REQUEST"`.
+
+## 6. Auto-Build Business Tables Only
+
+This project uses SQL-first business tables. To auto-create business tables from
+`basic_database_struc.sql` (tables only), use:
+
+```bash
+python manage.py bootstrap_business_tables
+```
+
+Safety behavior:
+
+- If business tables already exist, it skips without dropping data.
+- If it detects a partial schema, it fails and asks for force reset.
+
+Force reset (destructive for business data):
+
+```bash
+python manage.py bootstrap_business_tables --force-reset
+```
+
+Render (Root Directory = `back_end`) recommended Start Command:
+
+```bash
+cd flight_backend && python manage.py bootstrap_business_tables && python manage.py migrate --noinput && gunicorn backend_core.wsgi:application --bind 0.0.0.0:$PORT
+```
