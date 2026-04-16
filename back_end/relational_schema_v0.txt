@@ -1,0 +1,181 @@
+// ==========================================
+// 1. CUSTOMERS & BOOKINGS
+// ==========================================
+
+Table USER {
+  user_id int [pk, not null]
+  first_name varchar [not null]
+  last_name varchar [not null]
+  email varchar [unique, not null]
+  phone_number varchar
+  password_hash varchar [not null]
+  created_at timestamp [not null]
+}
+
+Table TRAVEL_AGENCY {
+  agency_id int [pk, not null]
+  agency_name varchar [not null]
+  contact_email varchar [unique, not null]
+  contact_phone varchar [not null]
+  commission_rate decimal [not null] // e.g., 0.05 for 5%
+}
+
+Table BOOKING {
+  booking_id int [pk, not null]
+  
+  // ISA hierarchy flattened: Total participation + disjoint constraint.
+  // SQL implementation: CHECK ((user_id IS NOT NULL AND agency_id IS NULL) OR (user_id IS NULL AND agency_id IS NOT NULL))
+  user_id int [ref: > USER.user_id] 
+  agency_id int [ref: > TRAVEL_AGENCY.agency_id]
+  
+  booking_date timestamp [not null]
+  total_price decimal [not null]
+  booking_status varchar [not null] // e.g., 'Confirmed', 'Cancelled'
+}
+
+Table PASSENGER {
+  passenger_id int [pk, not null]
+  first_name varchar [not null]
+  last_name varchar [not null]
+  date_of_birth date [not null]
+  passport_number varchar [unique]
+  nationality varchar
+}
+
+Table BOOKING_PASSENGER {
+  booking_id int [ref: > BOOKING.booking_id, not null]
+  passenger_id int [ref: > PASSENGER.passenger_id, not null]
+  special_requests text // e.g., "Vegetarian meal", "Wheelchair access"
+  
+  indexes {
+    // Natively prevents duplicate passengers in the same booking
+    (booking_id, passenger_id) [pk]
+  }
+}
+
+Table PAYMENT {
+  payment_id int [pk, not null]
+  booking_id int [ref: > BOOKING.booking_id, not null]
+  amount decimal [not null]
+  payment_date timestamp [not null]
+  payment_method varchar [not null] // e.g., 'Credit Card', 'PayPal'
+  transaction_id varchar [unique, not null]
+  payment_status varchar [not null] // e.g., 'Completed', 'Failed', 'Refunded'
+}
+
+// ==========================================
+// 2. FLIGHT OPERATIONS
+// ==========================================
+
+Table FLIGHT {
+  flight_id int [pk, not null]
+  flight_number varchar [unique, not null] // e.g., "AA100"
+  origin_airport_code char(3) [not null]   // e.g., "JFK"
+  destination_airport_code char(3) [not null] // e.g., "LHR"
+  base_duration_minutes int [not null]
+}
+
+Table AIRCRAFT {
+  aircraft_id int [pk, not null]
+  tail_number varchar [unique, not null] // e.g., "N12345"
+  manufacturer varchar [not null]        // e.g., "Boeing"
+  model varchar [not null]               // e.g., "777-300ER"
+  total_capacity int [not null]
+  manufacture_year int
+}
+
+Table SEAT {
+  seat_id int [pk, not null]
+  aircraft_id int [ref: > AIRCRAFT.aircraft_id, not null]
+  seat_number varchar [not null] // e.g., "12A"
+  seat_class varchar [not null]  // e.g., "Economy", "First Class"
+  
+  indexes {
+    (aircraft_id, seat_number) [unique] // Prevents duplicate seat numbers on one plane
+    (seat_id, aircraft_id) [unique]     // Required for composite FK alignment in TICKET
+  }
+}
+
+Table SCHEDULE {
+  schedule_id int [pk, not null]
+  flight_id int [ref: > FLIGHT.flight_id, not null]
+  aircraft_id int [ref: > AIRCRAFT.aircraft_id, not null]
+  departure_time timestamp [not null]
+  arrival_time timestamp [not null]
+  flight_status varchar [not null] // e.g., 'Scheduled', 'Boarding', 'Departed', 'Delayed'
+  
+  indexes {
+    (schedule_id, aircraft_id) [unique] // Required for composite FK alignment in TICKET
+  }
+}
+
+// ==========================================
+// 3. TICKETING
+// ==========================================
+
+Table TICKET {
+  ticket_id int [pk, not null]
+  booking_id int [ref: > BOOKING.booking_id, not null]
+  passenger_id int [ref: > PASSENGER.passenger_id, not null]
+  
+  // These three fields work together to enforce the diamond dependency natively
+  schedule_id int [not null]
+  seat_id int [not null]
+  aircraft_id int [not null]
+
+  ticket_number varchar [unique, not null]
+  fare_paid decimal [not null]
+  boarding_group varchar // e.g., "Group 1"
+  
+  indexes {
+    // Ensures a seat on a specific scheduled flight is not double-booked
+    (seat_id, schedule_id) [unique]
+  }
+}
+
+// Composite Foreign Keys for strict schema-level enforcement
+// 1. The ticket's seat MUST belong to the specified aircraft
+Ref: TICKET.(seat_id, aircraft_id) > SEAT.(seat_id, aircraft_id)
+
+// 2. The ticket's schedule MUST use the specified aircraft
+Ref: TICKET.(schedule_id, aircraft_id) > SCHEDULE.(schedule_id, aircraft_id)
+
+
+// ==========================================
+// 4. EMPLOYEE MANAGEMENT & PROCESSING
+// ==========================================
+
+Table EMPLOYEE {
+  employee_id int [pk, not null]
+  first_name varchar [not null]
+  last_name varchar [not null]
+  email varchar [unique, not null]
+  hire_date date [not null]
+}
+
+Table ROLE {
+  role_id int [pk, not null]
+  role_name varchar [unique, not null] // e.g., "Admin", "Ticketing Agent"
+  description text
+}
+
+Table EMPLOYEE_ROLE {
+  employee_id int [ref: > EMPLOYEE.employee_id, not null]
+  role_id int [ref: > ROLE.role_id, not null]
+  
+  indexes {
+    (employee_id, role_id) [pk]
+  }
+}
+
+Table BOOKING_PROCESSING {
+  employee_id int [ref: > EMPLOYEE.employee_id, not null]
+  booking_id int [ref: > BOOKING.booking_id, not null]
+  action_timestamp timestamp [not null]
+  action_type varchar [not null] // e.g., "CREATED", "MODIFIED", "REFUNDED"
+  notes text // Optional context for the audit log
+  
+  indexes {
+    (employee_id, booking_id, action_timestamp) [pk]
+  }
+}

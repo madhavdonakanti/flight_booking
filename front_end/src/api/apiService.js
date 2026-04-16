@@ -160,6 +160,44 @@ const handleApiError = (operationName, error, fallbackMessage) => {
   throw getFriendlyErrorMessage(error, fallbackMessage);
 };
 
+const getLoweredApiErrorMessage = (error) => {
+  const responseData = error?.response?.data;
+  const responseMessage =
+    responseData?.detail || responseData?.message || responseData?.error || '';
+
+  return typeof responseMessage === 'string' ? responseMessage.trim().toLowerCase() : '';
+};
+
+const isPaymentFailureRejection = (error) => {
+  const status = error?.response?.status;
+  const loweredMessage = getLoweredApiErrorMessage(error);
+
+  const hasPaymentFailureMessage =
+    loweredMessage.includes('payment') ||
+    loweredMessage.includes('card') ||
+    loweredMessage.includes('declin') ||
+    loweredMessage.includes('insufficient') ||
+    loweredMessage.includes('authorization') ||
+    loweredMessage.includes('expired') ||
+    loweredMessage.includes('cvv');
+
+  return status === 402 || (status === 400 && hasPaymentFailureMessage);
+};
+
+const isSeatAvailabilityRejection = (error) => {
+  const status = error?.response?.status;
+  const loweredMessage = getLoweredApiErrorMessage(error);
+
+  const hasSeatAvailabilityMessage =
+    loweredMessage.includes('seat') &&
+    (loweredMessage.includes('booked') ||
+      loweredMessage.includes('available') ||
+      loweredMessage.includes('taken') ||
+      loweredMessage.includes('unavailable'));
+
+  return status === 409 || hasSeatAvailabilityMessage;
+};
+
 export const fetchSchedules = async ({ origin, destination, date }) => {
   try {
     const { data } = await apiClient.get('schedules/', {
@@ -257,6 +295,20 @@ export const submitFinalBooking = async ({
     const { data } = await apiClient.post('bookings/finalize/', payload);
     return ensureBookingId(data);
   } catch (error) {
+    if (isPaymentFailureRejection(error)) {
+      throw {
+        type: 'PAYMENT_FAILED',
+        message: 'Your card was declined. Please try another payment method.',
+      };
+    }
+
+    if (isSeatAvailabilityRejection(error)) {
+      throw {
+        type: 'SEAT_TAKEN',
+        message: 'One of your selected seats was just booked by someone else.',
+      };
+    }
+
     if (shouldUseMockFallback(error)) {
       logMockFallback('submitFinalBooking', error);
 

@@ -231,7 +231,31 @@ function CheckoutFlow() {
 
       navigate('/success', { replace: true });
     } catch (error) {
-      const message = typeof error === 'string' ? error : 'Unable to complete booking. Please try again.';
+      if (error?.type === 'PAYMENT_FAILED') {
+        setIsSubmitting(false);
+        setSubmitError(error.message || 'Your card was declined. Please try another payment method.');
+        return;
+      }
+
+      if (error?.type === 'SEAT_TAKEN') {
+        setIsSubmitting(false);
+        setSubmitError('');
+
+        if (typeof window !== 'undefined') {
+          window.alert(error.message || 'One of your selected seats was just booked by someone else.');
+        }
+
+        useBookingStore.setState({ selectedSeatIds: [] });
+
+        const queryString = searchParams.toString();
+        navigate(queryString ? `/book/seats?${queryString}` : '/book/seats', { replace: true });
+        return;
+      }
+
+      const message =
+        typeof error === 'string'
+          ? error
+          : error?.message || 'Unable to complete booking. Please try again.';
       setSubmitError(message);
     } finally {
       setIsSubmitting(false);
@@ -308,6 +332,15 @@ function CheckoutFlow() {
             <h3 className="text-lg font-semibold text-slate-900">Payment Details</h3>
             <p className="mt-1 text-sm text-slate-600">Mock payment form for frontend workflow testing.</p>
 
+            {submitError ? (
+              <p
+                role="alert"
+                className="mt-4 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-medium text-rose-700"
+              >
+                {submitError}
+              </p>
+            ) : null}
+
             <form onSubmit={handleSubmitBooking} className="mt-4 space-y-4">
               <label className="flex flex-col gap-2">
                 <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">Cardholder Name</span>
@@ -358,15 +391,6 @@ function CheckoutFlow() {
                   />
                 </label>
               </div>
-
-              {submitError ? (
-                <p
-                  role="alert"
-                  className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-medium text-rose-700"
-                >
-                  {submitError}
-                </p>
-              ) : null}
 
               {hasSeatPassengerMismatch ? (
                 <p
