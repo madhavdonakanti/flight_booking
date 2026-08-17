@@ -3,14 +3,26 @@ from rest_framework import status
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
 
-from .serializers import BookingLookupSerializer, FinalizeBookingSerializer
+from .serializers import (
+    BookingLookupSerializer,
+    FinalizeBookingSerializer,
+    LoginSerializer,
+    PNRLookupSerializer,
+    RegisterSerializer,
+)
 from .services import (
     ApiDomainError,
+    UnauthorizedError,
+    authenticate_user,
+    fetch_booking_by_pnr,
     fetch_bookings_by_user,
+    fetch_bookings_by_user_id,
     fetch_schedules,
     fetch_seats_by_aircraft_id,
     fetch_tickets_by_schedule_id,
     finalize_booking,
+    register_user,
+    verify_jwt_token,
 )
 
 
@@ -26,6 +38,74 @@ def _error_response(message, status_code, error_code):
 
 def _domain_error_response(error):
     return _error_response(error.message, error.status_code, error.error_code)
+
+
+def _extract_bearer_token(request):
+    auth_header = request.headers.get("Authorization") or request.META.get("HTTP_AUTHORIZATION") or ""
+    if not auth_header:
+        raise UnauthorizedError("Authorization header is missing.")
+
+    parts = auth_header.strip().split()
+    if len(parts) != 2 or parts[0].lower() not in ("bearer", "token"):
+        raise UnauthorizedError("Authorization header must be in format 'Bearer <token>'.")
+
+    return parts[1]
+
+
+@api_view(["POST"])
+def register_view(request):
+    serializer = RegisterSerializer(data=request.data)
+    if not serializer.is_valid():
+        return _error_response(
+            "Registration data is invalid. Please check fields and password length.",
+            status.HTTP_400_BAD_REQUEST,
+            "INVALID_REQUEST",
+        )
+
+    try:
+        data = register_user(**serializer.validated_data)
+        return Response(data, status=status.HTTP_201_CREATED)
+    except ApiDomainError as error:
+        return _domain_error_response(error)
+    except DatabaseError:
+        return _error_response(
+            "Unable to register user. Please try again.",
+            status.HTTP_500_INTERNAL_SERVER_ERROR,
+            "DATABASE_ERROR",
+        )
+
+
+@api_view(["POST"])
+def login_view(request):
+    serializer = LoginSerializer(data=request.data)
+    if not serializer.is_valid():
+        return _error_response(
+            "Please provide email and password.",
+            status.HTTP_400_BAD_REQUEST,
+            "INVALID_REQUEST",
+        )
+
+    try:
+        data = authenticate_user(**serializer.validated_data)
+        return Response(data, status=status.HTTP_200_OK)
+    except ApiDomainError as error:
+        return _domain_error_response(error)
+    except DatabaseError:
+        return _error_response(
+            "Unable to authenticate user. Please try again.",
+            status.HTTP_500_INTERNAL_SERVER_ERROR,
+            "DATABASE_ERROR",
+        )
+
+
+@api_view(["GET"])
+def me_view(request):
+    try:
+        token = _extract_bearer_token(request)
+        payload = verify_jwt_token(token)
+        return Response({"user": payload})
+    except ApiDomainError as error:
+        return _domain_error_response(error)
 
 
 @api_view(["GET"])
@@ -124,6 +204,47 @@ def bookings_view(request):
         )
 
 
+@api_view(["GET"])
+def pnr_lookup_view(request):
+    serializer = PNRLookupSerializer(data=request.query_params)
+    if not serializer.is_valid():
+        return _error_response(
+            "Please provide a valid Booking ID and Email.",
+            status.HTTP_400_BAD_REQUEST,
+            "INVALID_REQUEST",
+        )
+
+    try:
+        booking = fetch_booking_by_pnr(**serializer.validated_data)
+        return Response([booking])
+    except ApiDomainError as error:
+        return _domain_error_response(error)
+    except DatabaseError:
+        return _error_response(
+            "Unable to lookup booking. Please try again.",
+            status.HTTP_500_INTERNAL_SERVER_ERROR,
+            "DATABASE_ERROR",
+        )
+
+
+@api_view(["GET"])
+def my_bookings_view(request):
+    try:
+        token = _extract_bearer_token(request)
+        payload = verify_jwt_token(token)
+        user_id = payload.get("user_id")
+        bookings = fetch_bookings_by_user_id(user_id)
+        return Response(bookings)
+    except ApiDomainError as error:
+        return _domain_error_response(error)
+    except DatabaseError:
+        return _error_response(
+            "Unable to fetch user bookings. Please try again.",
+            status.HTTP_500_INTERNAL_SERVER_ERROR,
+            "DATABASE_ERROR",
+        )
+
+
 @api_view(["POST"])
 def finalize_booking_view(request):
     serializer = FinalizeBookingSerializer(data=request.data)
@@ -145,3 +266,4 @@ def finalize_booking_view(request):
             status.HTTP_500_INTERNAL_SERVER_ERROR,
             "DATABASE_ERROR",
         )
+

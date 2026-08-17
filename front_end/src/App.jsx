@@ -12,10 +12,12 @@ import useBookingStore from './store/useBookingStore';
 
 function Navbar() {
   const navigate = useNavigate();
-  const clearCart = useBookingStore((state) => state.clearCart);
+  const isAuthenticated = useBookingStore((state) => state.isAuthenticated);
+  const userDetails = useBookingStore((state) => state.userDetails);
+  const logout = useBookingStore((state) => state.logout);
 
   const handleSignOut = () => {
-    clearCart();
+    logout();
     navigate('/', { replace: true });
   };
 
@@ -27,13 +29,31 @@ function Navbar() {
           <h1 className="text-lg font-semibold tracking-tight text-slate-900">Customer and Admin Portal</h1>
         </div>
 
-        <button
-          type="button"
-          onClick={handleSignOut}
-          className="inline-flex h-10 items-center justify-center rounded-xl border border-slate-300 bg-white px-4 text-sm font-semibold text-slate-700 transition hover:border-slate-400 hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400 focus-visible:ring-offset-2"
-        >
-          Sign Out
-        </button>
+        <div className="flex items-center gap-3">
+          {isAuthenticated && userDetails?.name ? (
+            <span className="hidden text-xs font-semibold text-slate-600 sm:inline-block">
+              Signed in as <strong className="text-slate-900">{userDetails.name}</strong>
+            </span>
+          ) : null}
+
+          {isAuthenticated ? (
+            <button
+              type="button"
+              onClick={handleSignOut}
+              className="inline-flex h-10 items-center justify-center rounded-xl border border-slate-300 bg-white px-4 text-sm font-semibold text-slate-700 transition hover:border-slate-400 hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400 focus-visible:ring-offset-2"
+            >
+              Sign Out
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={() => navigate('/login')}
+              className="inline-flex h-10 items-center justify-center rounded-xl bg-sky-600 px-4 text-sm font-semibold text-white shadow-sm transition hover:bg-sky-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-500 focus-visible:ring-offset-2"
+            >
+              Sign In / Register
+            </button>
+          )}
+        </div>
       </div>
     </header>
   );

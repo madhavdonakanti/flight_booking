@@ -119,3 +119,33 @@ class BookingLookupSerializer(serializers.Serializer):
         if not normalized:
             raise serializers.ValidationError("Phone is required.")
         return normalized
+
+
+class RegisterSerializer(serializers.Serializer):
+    name = serializers.CharField(max_length=200)
+    email = serializers.EmailField(max_length=254)
+    phone = serializers.CharField(max_length=40)
+    password = serializers.CharField(max_length=128, min_length=6)
+
+    def validate_name(self, value):
+        normalized = value.strip()
+        if not normalized:
+            raise serializers.ValidationError("Name is required.")
+        return normalized
+
+    def validate_phone(self, value):
+        normalized = value.strip()
+        if not normalized:
+            raise serializers.ValidationError("Phone is required.")
+        return normalized
+
+
+class LoginSerializer(serializers.Serializer):
+    email = serializers.EmailField(max_length=254)
+    password = serializers.CharField(max_length=128)
+
+
+class PNRLookupSerializer(serializers.Serializer):
+    booking_id = serializers.IntegerField(min_value=1)
+    email = serializers.EmailField(max_length=254)
+

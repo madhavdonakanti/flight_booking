@@ -11,15 +11,23 @@ const getSeatClassFare = (seatClass) => {
   return ECONOMY_FARE;
 };
 
+const getStoredToken = () => {
+  if (typeof window !== 'undefined') {
+    return localStorage.getItem('jwtToken') || null;
+  }
+  return null;
+};
+
 const getInitialState = () => ({
   selectedSchedule: null,
   selectedScheduleId: null,
   userDetails: null,
   lastBooking: null,
   passengers: [],
-  // [{ passengerIndex: number, seatId: string|number }]
   selectedSeatIds: [],
   allSeats: [],
+  token: getStoredToken(),
+  isAuthenticated: Boolean(getStoredToken()),
 });
 
 const useBookingStore = create((set, get) => ({
@@ -161,6 +169,30 @@ const useBookingStore = create((set, get) => ({
   },
 
   clearCart: () => {
+    set(getInitialState());
+  },
+
+  login: (userData, token) => {
+    if (typeof window !== 'undefined' && token) {
+      localStorage.setItem('jwtToken', token);
+    }
+    set({
+      token,
+      isAuthenticated: true,
+      userDetails: userData
+        ? {
+            name: userData.name || '',
+            email: userData.email || '',
+            phone: userData.phone || '',
+          }
+        : get().userDetails,
+    });
+  },
+
+  logout: () => {
+    if (typeof window !== 'undefined') {
+      localStorage.removeItem('jwtToken');
+    }
     set(getInitialState());
   },
 }));

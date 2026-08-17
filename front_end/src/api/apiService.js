@@ -33,6 +33,16 @@ const apiClient = axios.create({
   },
 });
 
+apiClient.interceptors.request.use((config) => {
+  if (typeof window !== 'undefined') {
+    const token = localStorage.getItem('jwtToken');
+    if (token) {
+      config.headers.Authorization = `Bearer ${token}`;
+    }
+  }
+  return config;
+});
+
 const toIsoDateString = (date) => {
   const year = date.getUTCFullYear();
   const month = String(date.getUTCMonth() + 1).padStart(2, '0');
@@ -344,6 +354,53 @@ export const fetchBookingsByUser = async ({ name, email, phone }) => {
     }
 
     handleApiError('fetchBookingsByUser', error, 'Unable to fetch bookings. Please try again.');
+  }
+};
+
+export const loginUser = async (email, password) => {
+  try {
+    const { data } = await apiClient.post('auth/login/', { email, password });
+    return data;
+  } catch (error) {
+    handleApiError('loginUser', error, 'Invalid email or password.');
+  }
+};
+
+export const registerUser = async ({ name, email, phone, password }) => {
+  try {
+    const { data } = await apiClient.post('auth/register/', { name, email, phone, password });
+    return data;
+  } catch (error) {
+    handleApiError('registerUser', error, 'Unable to complete registration. Please check fields.');
+  }
+};
+
+export const fetchMyBookings = async () => {
+  try {
+    const { data } = await apiClient.get('bookings/my-bookings/');
+    const bookings = Array.isArray(data) ? data : data?.results ?? [];
+    return bookings.map((booking) => ensureBookingId(booking));
+  } catch (error) {
+    handleApiError('fetchMyBookings', error, 'Unable to fetch your account bookings.');
+  }
+};
+
+export const lookupPNRBooking = async (bookingId, email) => {
+  try {
+    const { data } = await apiClient.get('bookings/lookup/', {
+      params: {
+        booking_id: bookingId,
+        email: email.trim().toLowerCase(),
+      },
+    });
+    const bookings = Array.isArray(data) ? data : data?.results ?? [];
+    return bookings.map((booking) => ensureBookingId(booking));
+  } catch (error) {
+    if (shouldUseMockFallback(error)) {
+      logMockFallback('lookupPNRBooking', error);
+      return [createMockBookingForUser({ name: 'Guest', email, phone: '' })];
+    }
+    handleApiError('lookupPNRBooking', error, 'No booking matching that Booking ID and Email was found.');
   }
 };
 
