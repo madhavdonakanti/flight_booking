@@ -42,6 +42,12 @@ function SearchForm() {
       return;
     }
 
+    const todayStr = new Date().toISOString().split('T')[0];
+    if (formData.departureDate && formData.departureDate < todayStr) {
+      setFormError('Departure date cannot be in the past.');
+      return;
+    }
+
     setFormError('');
 
     const searchParams = new URLSearchParams({
@@ -121,6 +127,7 @@ function SearchForm() {
                 <input
                   type="date"
                   name="departureDate"
+                  min={new Date().toISOString().split('T')[0]}
                   value={formData.departureDate}
                   onChange={handleChange}
                   className="h-12 rounded-xl border border-slate-300 bg-white px-4 text-slate-900 outline-none ring-sky-500 transition focus:border-sky-500 focus:ring-2"

@@ -8,7 +8,7 @@ function Landing() {
   };
 
   const handleAdminClick = () => {
-    window.alert('Admin portal is coming soon.');
+    navigate('/admin/login');
   };
 
   return (

@@ -241,7 +241,7 @@ class AuthAndSecurityTests(APITestCase):
             {
                 "name": "Auth User",
                 "email": "authuser@example.com",
-                "phone": "555-0199",
+                "phone": "9876543210",
                 "password": "secretpassword123",
             },
             format="json",
@@ -279,7 +279,7 @@ class AuthAndSecurityTests(APITestCase):
         seat = Seat.objects.create(aircraft=aircraft, seat_number="1A", seat_class="Economy")
 
         payload = {
-            "user": {"name": "Guest Customer", "email": "guestcust@example.com", "phone": "123"},
+            "user": {"name": "Guest Customer", "email": "guestcust@example.com", "phone": "1234567890"},
             "passengers": [{"first_name": "Guest", "last_name": "Cust", "birth_date": "2000-01-01"}],
             "schedule_id": schedule.schedule_id,
             "seat_ids": [seat.seat_id],
@@ -305,7 +305,7 @@ class AuthAndSecurityTests(APITestCase):
         seat = Seat.objects.create(aircraft=aircraft, seat_number="1B", seat_class="Economy")
 
         payload = {
-            "user": {"name": "PNR Cust", "email": "pnrcust@example.com", "phone": "999"},
+            "user": {"name": "PNR Cust", "email": "pnrcust@example.com", "phone": "9876543210"},
             "passengers": [{"first_name": "PNR", "last_name": "Cust", "birth_date": "2000-01-01"}],
             "schedule_id": schedule.schedule_id,
             "seat_ids": [seat.seat_id],
@@ -328,4 +328,247 @@ class AuthAndSecurityTests(APITestCase):
             format="json",
         )
         self.assertEqual(failed_res.status_code, 404)
+
+    def test_phone_number_10_digit_validation(self):
+        # 9 digit phone should fail
+        res_invalid = self.client.post(
+            "/api/auth/register/",
+            {
+                "name": "Short Phone",
+                "email": "shortphone@example.com",
+                "phone": "123456789",
+                "password": "secretpassword123",
+            },
+            format="json",
+        )
+        self.assertEqual(res_invalid.status_code, 400)
+
+        # 10 digit phone should succeed
+        res_valid = self.client.post(
+            "/api/auth/register/",
+            {
+                "name": "Valid Phone",
+                "email": "validphone@example.com",
+                "phone": "1234567890",
+                "password": "secretpassword123",
+            },
+            format="json",
+        )
+        self.assertEqual(res_valid.status_code, 201)
+
+
+class AdminAndStaffRbacTests(APITestCase):
+    def setUp(self):
+        from .admin_services import seed_default_employees
+        seed_default_employees()
+
+    def test_employee_login(self):
+        admin_res = self.client.post(
+            "/api/admin/login/",
+            {"email": "admin@skyway.com", "password": "admin123"},
+            format="json",
+        )
+        self.assertEqual(admin_res.status_code, 200)
+        self.assertIn("Admin", admin_res.json()["employee"]["roles"])
+
+        staff_res = self.client.post(
+            "/api/admin/login/",
+            {"email": "staff@skyway.com", "password": "staff123"},
+            format="json",
+        )
+        self.assertEqual(staff_res.status_code, 200)
+        self.assertIn("Staff", staff_res.json()["employee"]["roles"])
+
+    def test_staff_cannot_create_aircraft_or_schedule(self):
+        staff_login = self.client.post(
+            "/api/admin/login/",
+            {"email": "staff@skyway.com", "password": "staff123"},
+            format="json",
+        )
+        staff_token = staff_login.json()["token"]
+
+        # Staff attempt to create aircraft should fail with 403
+        aircraft_res = self.client.post(
+            "/api/admin/aircraft/",
+            {
+                "tail_number": "N-STAFF",
+                "manufacturer": "Airbus",
+                "model": "A320",
+                "total_capacity": 150,
+            },
+            HTTP_AUTHORIZATION=f"Bearer {staff_token}",
+            format="json",
+        )
+        self.assertEqual(aircraft_res.status_code, 403)
+
+    def test_admin_can_create_aircraft_and_schedule(self):
+        admin_login = self.client.post(
+            "/api/admin/login/",
+            {"email": "admin@skyway.com", "password": "admin123"},
+            format="json",
+        )
+        admin_token = admin_login.json()["token"]
+
+        # Create aircraft
+        aircraft_res = self.client.post(
+            "/api/admin/aircraft/",
+            {
+                "tail_number": "N-ADMIN1",
+                "manufacturer": "Boeing",
+                "model": "787-9",
+                "total_capacity": 180,
+                "manufacture_year": 2023,
+            },
+            HTTP_AUTHORIZATION=f"Bearer {admin_token}",
+            format="json",
+        )
+        self.assertEqual(aircraft_res.status_code, 201)
+        aircraft_id = aircraft_res.json()["aircraft_id"]
+
+        # Create schedule
+        dept_time = (timezone.now() + timedelta(days=2)).isoformat()
+        arr_time = (timezone.now() + timedelta(days=2, hours=5)).isoformat()
+
+        schedule_res = self.client.post(
+            "/api/admin/schedules/",
+            {
+                "flight_number": "SW500",
+                "origin_airport_code": "JFK",
+                "destination_airport_code": "SFO",
+                "base_duration_minutes": 330,
+                "aircraft_id": aircraft_id,
+                "departure_time": dept_time,
+                "arrival_time": arr_time,
+                "flight_status": "Scheduled",
+            },
+            HTTP_AUTHORIZATION=f"Bearer {admin_token}",
+            format="json",
+        )
+        self.assertEqual(schedule_res.status_code, 201)
+        self.assertEqual(schedule_res.json()["flight_number"], "SW500")
+
+    def test_booking_status_update_creates_audit_log(self):
+        user = User.objects.create(
+            first_name="Test",
+            last_name="Customer",
+            email="cust@example.com",
+            phone_number="1234567890",
+            password_hash="hash",
+            created_at=timezone.now(),
+        )
+        booking = Booking.objects.create(
+            user=user,
+            booking_date=timezone.now(),
+            total_price=300.00,
+            booking_status="Confirmed",
+        )
+
+        staff_login = self.client.post(
+            "/api/admin/login/",
+            {"email": "staff@skyway.com", "password": "staff123"},
+            format="json",
+        )
+        staff_token = staff_login.json()["token"]
+
+        update_res = self.client.put(
+            f"/api/admin/bookings/{booking.booking_id}/status/",
+            {
+                "status": "Cancelled",
+                "notes": "Cancelled per customer phone request.",
+            },
+            HTTP_AUTHORIZATION=f"Bearer {staff_token}",
+            format="json",
+        )
+        self.assertEqual(update_res.status_code, 200)
+        self.assertEqual(update_res.json()["status"], "Cancelled")
+
+        # Verify audit log recorded
+        logs_res = self.client.get(
+            "/api/admin/audit-logs/",
+            HTTP_AUTHORIZATION=f"Bearer {staff_token}",
+            format="json",
+        )
+        self.assertEqual(logs_res.status_code, 200)
+        self.assertTrue(len(logs_res.json()) >= 1)
+        self.assertEqual(logs_res.json()[0]["action_type"], "CANCELLED")
+
+    def test_token_type_isolation(self):
+        # Admin token on user endpoint should fail
+        admin_login = self.client.post(
+            "/api/admin/login/",
+            {"email": "admin@skyway.com", "password": "admin123"},
+            format="json",
+        )
+        admin_token = admin_login.json()["token"]
+
+        user_me_res = self.client.get(
+            "/api/auth/me/",
+            HTTP_AUTHORIZATION=f"Bearer {admin_token}",
+            format="json",
+        )
+        self.assertEqual(user_me_res.status_code, 401)
+
+        # User token on admin endpoint should fail
+        user_reg = self.client.post(
+            "/api/auth/register/",
+            {
+                "name": "Normal User",
+                "email": "normaluser@example.com",
+                "phone": "1234567890",
+                "password": "userpass123",
+            },
+            format="json",
+        )
+        user_token = user_reg.json()["token"]
+
+        admin_me_res = self.client.get(
+            "/api/admin/me/",
+            HTTP_AUTHORIZATION=f"Bearer {user_token}",
+            format="json",
+        )
+        self.assertEqual(admin_me_res.status_code, 401)
+
+    def test_employee_password_change_persists(self):
+        from django.contrib.auth.hashers import make_password
+        from .models import Employee
+
+        # Change admin password
+        admin_emp = Employee.objects.get(email="admin@skyway.com")
+        admin_emp.password_hash = make_password("newsecurepass123")
+        admin_emp.save()
+
+        # Login with old password must fail
+        failed_login = self.client.post(
+            "/api/admin/login/",
+            {"email": "admin@skyway.com", "password": "admin123"},
+            format="json",
+        )
+        self.assertEqual(failed_login.status_code, 401)
+
+        # Login with new password must succeed
+        successful_login = self.client.post(
+            "/api/admin/login/",
+            {"email": "admin@skyway.com", "password": "newsecurepass123"},
+            format="json",
+        )
+        self.assertEqual(successful_login.status_code, 200)
+
+    def test_cors_middleware_allowed_origin(self):
+        # Allowed origin
+        response = self.client.get(
+            "/api/schedules/",
+            HTTP_ORIGIN="http://localhost:5173",
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.get("Access-Control-Allow-Origin"), "http://localhost:5173")
+
+        # Disallowed origin
+        bad_response = self.client.get(
+            "/api/schedules/",
+            HTTP_ORIGIN="http://malicious-site.com",
+        )
+        self.assertEqual(bad_response.status_code, 200)
+        self.assertIsNone(bad_response.get("Access-Control-Allow-Origin"))
+
+
 

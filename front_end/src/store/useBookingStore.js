@@ -18,6 +18,25 @@ const getStoredToken = () => {
   return null;
 };
 
+const getStoredAdminToken = () => {
+  if (typeof window !== 'undefined') {
+    return localStorage.getItem('adminToken') || null;
+  }
+  return null;
+};
+
+const getStoredAdminUser = () => {
+  if (typeof window !== 'undefined') {
+    try {
+      const raw = localStorage.getItem('adminUser');
+      return raw ? JSON.parse(raw) : null;
+    } catch {
+      return null;
+    }
+  }
+  return null;
+};
+
 const getInitialState = () => ({
   selectedSchedule: null,
   selectedScheduleId: null,
@@ -28,6 +47,9 @@ const getInitialState = () => ({
   allSeats: [],
   token: getStoredToken(),
   isAuthenticated: Boolean(getStoredToken()),
+  adminToken: getStoredAdminToken(),
+  adminUser: getStoredAdminUser(),
+  isAdminAuthenticated: Boolean(getStoredAdminToken()),
 });
 
 const useBookingStore = create((set, get) => ({
@@ -194,6 +216,30 @@ const useBookingStore = create((set, get) => ({
       localStorage.removeItem('jwtToken');
     }
     set(getInitialState());
+  },
+
+  adminLogin: (employeeData, token) => {
+    if (typeof window !== 'undefined' && token) {
+      localStorage.setItem('adminToken', token);
+      localStorage.setItem('adminUser', JSON.stringify(employeeData));
+    }
+    set({
+      adminToken: token,
+      adminUser: employeeData,
+      isAdminAuthenticated: true,
+    });
+  },
+
+  adminLogout: () => {
+    if (typeof window !== 'undefined') {
+      localStorage.removeItem('adminToken');
+      localStorage.removeItem('adminUser');
+    }
+    set({
+      adminToken: null,
+      adminUser: null,
+      isAdminAuthenticated: false,
+    });
   },
 }));
 

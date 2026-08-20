@@ -1,4 +1,12 @@
+import re
 from rest_framework import serializers
+
+
+def _validate_10_digit_phone(value):
+    clean_phone = re.sub(r"\D", "", value or "")
+    if len(clean_phone) != 10:
+        raise serializers.ValidationError("Phone number must contain exactly 10 digits.")
+    return clean_phone
 
 
 class UserPayloadSerializer(serializers.Serializer):
@@ -13,10 +21,7 @@ class UserPayloadSerializer(serializers.Serializer):
         return normalized
 
     def validate_phone(self, value):
-        normalized = value.strip()
-        if not normalized:
-            raise serializers.ValidationError("Phone is required.")
-        return normalized
+        return _validate_10_digit_phone(value)
 
 
 class PassengerPayloadSerializer(serializers.Serializer):
@@ -42,6 +47,12 @@ class PassengerPayloadSerializer(serializers.Serializer):
             return None
         normalized = value.strip()
         return normalized or None
+
+    def validate_birth_date(self, value):
+        from django.utils import timezone
+        if value > timezone.now().date():
+            raise serializers.ValidationError("Date of birth cannot be in the future.")
+        return value
 
 
 class SeatAssignmentSerializer(serializers.Serializer):
@@ -115,10 +126,7 @@ class BookingLookupSerializer(serializers.Serializer):
         return normalized
 
     def validate_phone(self, value):
-        normalized = value.strip()
-        if not normalized:
-            raise serializers.ValidationError("Phone is required.")
-        return normalized
+        return _validate_10_digit_phone(value)
 
 
 class RegisterSerializer(serializers.Serializer):
@@ -134,10 +142,7 @@ class RegisterSerializer(serializers.Serializer):
         return normalized
 
     def validate_phone(self, value):
-        normalized = value.strip()
-        if not normalized:
-            raise serializers.ValidationError("Phone is required.")
-        return normalized
+        return _validate_10_digit_phone(value)
 
 
 class LoginSerializer(serializers.Serializer):
@@ -148,4 +153,56 @@ class LoginSerializer(serializers.Serializer):
 class PNRLookupSerializer(serializers.Serializer):
     booking_id = serializers.IntegerField(min_value=1)
     email = serializers.EmailField(max_length=254)
+
+
+class EmployeeLoginSerializer(serializers.Serializer):
+    email = serializers.EmailField(max_length=254)
+    password = serializers.CharField(max_length=128)
+
+
+class AircraftSerializer(serializers.Serializer):
+    tail_number = serializers.CharField(max_length=50)
+    manufacturer = serializers.CharField(max_length=100)
+    model = serializers.CharField(max_length=100)
+    total_capacity = serializers.IntegerField(min_value=1)
+    manufacture_year = serializers.IntegerField(required=False, allow_null=True)
+
+
+class CreateScheduleSerializer(serializers.Serializer):
+    flight_number = serializers.CharField(max_length=20)
+    origin_airport_code = serializers.CharField(max_length=3, min_length=3)
+    destination_airport_code = serializers.CharField(max_length=3, min_length=3)
+    base_duration_minutes = serializers.IntegerField(min_value=1)
+    aircraft_id = serializers.IntegerField(min_value=1)
+    departure_time = serializers.DateTimeField()
+    arrival_time = serializers.DateTimeField()
+    flight_status = serializers.CharField(max_length=50, default="Scheduled")
+
+    def validate(self, attrs):
+        from datetime import timedelta
+        from django.utils import timezone
+        departure = attrs.get("departure_time")
+        arrival = attrs.get("arrival_time")
+        now = timezone.now()
+
+        if departure:
+            dep = departure
+            if dep.tzinfo is None:
+                now = now.replace(tzinfo=None)
+            if dep < now - timedelta(days=2):
+                raise serializers.ValidationError("Departure time cannot be more than 2 days in the past.")
+
+        if departure and arrival:
+            if arrival < departure - timedelta(days=2):
+                raise serializers.ValidationError("Arrival time cannot be more than 2 days before departure time.")
+            if arrival > departure + timedelta(days=5):
+                raise serializers.ValidationError("Arrival time cannot be more than 5 days after departure time.")
+
+        return attrs
+
+
+class UpdateBookingStatusSerializer(serializers.Serializer):
+    status = serializers.CharField(max_length=50)
+    notes = serializers.CharField(required=False, allow_blank=True, default="")
+
 

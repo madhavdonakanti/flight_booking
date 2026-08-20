@@ -1,4 +1,4 @@
-import { BrowserRouter, Navigate, Route, Routes, useNavigate } from 'react-router-dom';
+import { BrowserRouter, Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
 import SearchForm from './components/SearchForm';
 import Results from './pages/Results';
 import PassengerDetails from './pages/PassengerDetails';
@@ -8,13 +8,23 @@ import Landing from './pages/Landing';
 import CustomerLogin from './pages/CustomerLogin';
 import PaymentSuccess from './pages/PaymentSuccess';
 import FindBooking from './pages/FindBooking';
+import AdminLogin from './pages/AdminLogin';
+import AdminDashboard from './pages/AdminDashboard';
 import useBookingStore from './store/useBookingStore';
 
 function Navbar() {
   const navigate = useNavigate();
+  const location = useLocation();
   const isAuthenticated = useBookingStore((state) => state.isAuthenticated);
   const userDetails = useBookingStore((state) => state.userDetails);
   const logout = useBookingStore((state) => state.logout);
+
+  const hideNavbar = location.pathname.startsWith('/admin');
+  const hideSignInButton = location.pathname === '/' || location.pathname === '/login';
+
+  if (hideNavbar) {
+    return null;
+  }
 
   const handleSignOut = () => {
     logout();
@@ -26,7 +36,7 @@ function Navbar() {
       <div className="mx-auto flex w-full max-w-7xl flex-wrap items-center justify-between gap-3 px-4 py-3 sm:px-6 lg:px-8">
         <div>
           <p className="text-xs font-semibold uppercase tracking-[0.2em] text-sky-600">Flight Booking System</p>
-          <h1 className="text-lg font-semibold tracking-tight text-slate-900">Customer and Admin Portal</h1>
+          <h1 className="text-lg font-semibold tracking-tight text-slate-900">Customer Portal</h1>
         </div>
 
         <div className="flex items-center gap-3">
@@ -44,7 +54,7 @@ function Navbar() {
             >
               Sign Out
             </button>
-          ) : (
+          ) : !hideSignInButton ? (
             <button
               type="button"
               onClick={() => navigate('/login')}
@@ -52,21 +62,10 @@ function Navbar() {
             >
               Sign In / Register
             </button>
-          )}
+          ) : null}
         </div>
       </div>
     </header>
-  );
-}
-
-function PagePlaceholder({ title, description }) {
-  return (
-    <section className="mx-auto w-full max-w-5xl px-4 py-10 sm:px-6 lg:px-8">
-      <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-[0_16px_40px_-24px_rgba(15,23,42,0.35)] sm:p-8">
-        <h2 className="text-2xl font-semibold tracking-tight text-slate-900">{title}</h2>
-        <p className="mt-2 text-sm text-slate-600 sm:text-base">{description}</p>
-      </div>
-    </section>
   );
 }
 
@@ -91,15 +90,8 @@ function App() {
             <Route path="/book/seats" element={<SeatSelection />} />
             <Route path="/book/checkout" element={<CheckoutFlow />} />
             <Route path="/success" element={<PaymentSuccess />} />
-            <Route
-              path="/admin"
-              element={
-                <PagePlaceholder
-                  title="Admin Portal"
-                  description="Manage fleet, schedules, and booking records from this dashboard."
-                />
-              }
-            />
+            <Route path="/admin/login" element={<AdminLogin />} />
+            <Route path="/admin" element={<AdminDashboard />} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
         </main>

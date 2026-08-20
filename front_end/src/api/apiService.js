@@ -35,8 +35,15 @@ const apiClient = axios.create({
 
 apiClient.interceptors.request.use((config) => {
   if (typeof window !== 'undefined') {
+    const adminToken = localStorage.getItem('adminToken');
     const token = localStorage.getItem('jwtToken');
-    if (token) {
+    const isAdminEndpoint = config.url && (config.url.startsWith('admin/') || config.url.startsWith('/admin/'));
+
+    if (isAdminEndpoint) {
+      if (adminToken) {
+        config.headers.Authorization = `Bearer ${adminToken}`;
+      }
+    } else if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
   }
@@ -281,14 +288,14 @@ export const submitFinalBooking = async ({
 }) => {
   const normalizedSeatAssignments = Array.isArray(selectedSeatAssignments)
     ? selectedSeatAssignments
-        .filter(
-          (entry) => Number.isInteger(entry?.passengerIndex) && entry?.seatId != null
-        )
-        .map((entry) => ({
-          passenger_index: entry.passengerIndex,
-          seat_id: entry.seatId,
-        }))
-        .sort((a, b) => a.passenger_index - b.passenger_index)
+      .filter(
+        (entry) => Number.isInteger(entry?.passengerIndex) && entry?.seatId != null
+      )
+      .map((entry) => ({
+        passenger_index: entry.passengerIndex,
+        seat_id: entry.seatId,
+      }))
+      .sort((a, b) => a.passenger_index - b.passenger_index)
     : [];
 
   const seatIds = normalizedSeatAssignments.map((entry) => entry.seat_id);
@@ -401,6 +408,96 @@ export const lookupPNRBooking = async (bookingId, email) => {
       return [createMockBookingForUser({ name: 'Guest', email, phone: '' })];
     }
     handleApiError('lookupPNRBooking', error, 'No booking matching that Booking ID and Email was found.');
+  }
+};
+
+export const loginAdmin = async (email, password) => {
+  try {
+    const { data } = await apiClient.post('admin/login/', { email, password });
+    return data;
+  } catch (error) {
+    handleApiError('loginAdmin', error, 'Invalid employee credentials.');
+  }
+};
+
+export const fetchAdminAircraft = async () => {
+  try {
+    const { data } = await apiClient.get('admin/aircraft/');
+    return data;
+  } catch (error) {
+    handleApiError('fetchAdminAircraft', error, 'Unable to fetch aircraft list.');
+  }
+};
+
+export const createAdminAircraft = async (aircraftData) => {
+  try {
+    const { data } = await apiClient.post('admin/aircraft/', aircraftData);
+    return data;
+  } catch (error) {
+    handleApiError('createAdminAircraft', error, 'Unable to create aircraft.');
+  }
+};
+
+export const deleteAdminAircraft = async (aircraftId) => {
+  try {
+    const { data } = await apiClient.delete(`admin/aircraft/${aircraftId}/`);
+    return data;
+  } catch (error) {
+    handleApiError('deleteAdminAircraft', error, 'Unable to delete aircraft.');
+  }
+};
+
+export const fetchAdminSchedules = async () => {
+  try {
+    const { data } = await apiClient.get('admin/schedules/');
+    return data;
+  } catch (error) {
+    handleApiError('fetchAdminSchedules', error, 'Unable to fetch admin schedules.');
+  }
+};
+
+export const createAdminSchedule = async (scheduleData) => {
+  try {
+    const { data } = await apiClient.post('admin/schedules/', scheduleData);
+    return data;
+  } catch (error) {
+    handleApiError('createAdminSchedule', error, 'Unable to create schedule.');
+  }
+};
+
+export const deleteAdminSchedule = async (scheduleId) => {
+  try {
+    const { data } = await apiClient.delete(`admin/schedules/${scheduleId}/`);
+    return data;
+  } catch (error) {
+    handleApiError('deleteAdminSchedule', error, 'Unable to delete schedule.');
+  }
+};
+
+export const fetchAdminBookings = async () => {
+  try {
+    const { data } = await apiClient.get('admin/bookings/');
+    return data;
+  } catch (error) {
+    handleApiError('fetchAdminBookings', error, 'Unable to fetch admin bookings.');
+  }
+};
+
+export const updateAdminBookingStatus = async (bookingId, status, notes) => {
+  try {
+    const { data } = await apiClient.put(`admin/bookings/${bookingId}/status/`, { status, notes });
+    return data;
+  } catch (error) {
+    handleApiError('updateAdminBookingStatus', error, 'Unable to update booking status.');
+  }
+};
+
+export const fetchAdminAuditLogs = async () => {
+  try {
+    const { data } = await apiClient.get('admin/audit-logs/');
+    return data;
+  } catch (error) {
+    handleApiError('fetchAdminAuditLogs', error, 'Unable to fetch audit logs.');
   }
 };
 

@@ -172,7 +172,7 @@ class Migration(migrations.Migration):
         ),
         migrations.AddConstraint(
             model_name='booking',
-            constraint=models.CheckConstraint(check=models.Q(models.Q(('agency__isnull', True), ('user__isnull', False)), models.Q(('agency__isnull', False), ('user__isnull', True)), _connector='OR'), name='chk_booking_owner'),
+            constraint=models.CheckConstraint(condition=models.Q(models.Q(('agency__isnull', True), ('user__isnull', False)), models.Q(('agency__isnull', False), ('user__isnull', True)), _connector='OR'), name='chk_booking_owner'),
         ),
         migrations.AddConstraint(
             model_name='ticket',

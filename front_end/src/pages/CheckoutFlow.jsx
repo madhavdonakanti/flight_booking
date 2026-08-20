@@ -59,10 +59,17 @@ function CheckoutFlow() {
   const getTotalPrice = useBookingStore((state) => state.getTotalPrice);
   const setLastBooking = useBookingStore((state) => state.setLastBooking);
 
+  const setUserDetails = useBookingStore((state) => state.setUserDetails);
+
   const [seatNumberMap, setSeatNumberMap] = useState({});
   const [isSeatLoading, setIsSeatLoading] = useState(false);
   const [submitError, setSubmitError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [contactForm, setContactForm] = useState({
+    name: userDetails?.name || '',
+    email: userDetails?.email || '',
+    phone: userDetails?.phone || '',
+  });
   const [paymentForm, setPaymentForm] = useState({
     cardholderName: '',
     cardNumber: '',
@@ -176,12 +183,22 @@ function CheckoutFlow() {
     return null;
   }
 
+  const handleContactFieldChange = (event) => {
+    const { name, value } = event.target;
+    setContactForm((prev) => ({
+      ...prev,
+      [name]: value,
+    }));
+    if (submitError) setSubmitError('');
+  };
+
   const handlePaymentFieldChange = (event) => {
     const { name, value } = event.target;
     setPaymentForm((prev) => ({
       ...prev,
       [name]: value,
     }));
+    if (submitError) setSubmitError('');
   };
 
   const handleSubmitBooking = async (event) => {
@@ -196,8 +213,9 @@ function CheckoutFlow() {
       return;
     }
 
-    if (!hasValidUserDetails) {
-      setSubmitError('Guest details are missing. Please go back and complete your details first.');
+    const cleanPhone = contactForm.phone.replace(/\D/g, '');
+    if (!contactForm.name.trim() || !contactForm.email.trim() || cleanPhone.length !== 10) {
+      setSubmitError('Please enter your Name, valid Email, and a 10-digit Phone number for your booking ticket.');
       return;
     }
 
@@ -206,10 +224,12 @@ function CheckoutFlow() {
 
     try {
       const user = {
-        name: userDetails.name.trim(),
-        email: userDetails.email.trim(),
-        phone: userDetails.phone.trim(),
+        name: contactForm.name.trim(),
+        email: contactForm.email.trim(),
+        phone: cleanPhone,
       };
+
+      setUserDetails(user);
 
       const bookingResponse = await submitFinalBooking({
         user,
@@ -329,8 +349,8 @@ function CheckoutFlow() {
           </article>
 
           <article className="rounded-2xl border border-slate-200 bg-white p-5">
-            <h3 className="text-lg font-semibold text-slate-900">Payment Details</h3>
-            <p className="mt-1 text-sm text-slate-600">Mock payment form for frontend workflow testing.</p>
+            <h3 className="text-lg font-semibold text-slate-900">Contact & Payment Details</h3>
+            <p className="mt-1 text-sm text-slate-600">Provide your contact details for e-ticket delivery and complete payment.</p>
 
             {submitError ? (
               <p
@@ -342,6 +362,48 @@ function CheckoutFlow() {
             ) : null}
 
             <form onSubmit={handleSubmitBooking} className="mt-4 space-y-4">
+              <div className="rounded-xl border border-slate-200 bg-slate-50/60 p-4 space-y-3">
+                <h4 className="text-xs font-semibold uppercase tracking-wider text-sky-600">E-Ticket Contact Details</h4>
+
+                <label className="flex flex-col gap-1">
+                  <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">Full Name</span>
+                  <input
+                    type="text"
+                    name="name"
+                    value={contactForm.name}
+                    onChange={handleContactFieldChange}
+                    placeholder="Contact Name"
+                    className="h-10 rounded-lg border border-slate-300 bg-white px-3 text-sm text-slate-900 outline-none ring-sky-500 transition focus:border-sky-500 focus:ring-2"
+                    required
+                  />
+                </label>
+
+                <label className="flex flex-col gap-1">
+                  <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">Email Address</span>
+                  <input
+                    type="email"
+                    name="email"
+                    value={contactForm.email}
+                    onChange={handleContactFieldChange}
+                    placeholder="name@example.com"
+                    className="h-10 rounded-lg border border-slate-300 bg-white px-3 text-sm text-slate-900 outline-none ring-sky-500 transition focus:border-sky-500 focus:ring-2"
+                    required
+                  />
+                </label>
+
+                <label className="flex flex-col gap-1">
+                  <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">10-Digit Phone Number</span>
+                  <input
+                    type="tel"
+                    name="phone"
+                    value={contactForm.phone}
+                    onChange={handleContactFieldChange}
+                    placeholder="10 digit number e.g. 9876543210"
+                    className="h-10 rounded-lg border border-slate-300 bg-white px-3 text-sm text-slate-900 outline-none ring-sky-500 transition focus:border-sky-500 focus:ring-2"
+                    required
+                  />
+                </label>
+              </div>
               <label className="flex flex-col gap-2">
                 <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">Cardholder Name</span>
                 <input

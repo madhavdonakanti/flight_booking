@@ -267,3 +267,148 @@ def finalize_booking_view(request):
             "DATABASE_ERROR",
         )
 
+
+from .admin_services import (
+    authenticate_employee,
+    create_aircraft,
+    create_schedule_admin,
+    delete_aircraft,
+    delete_schedule_admin,
+    fetch_all_aircraft,
+    fetch_all_bookings_admin,
+    fetch_all_schedules_admin,
+    fetch_audit_logs,
+    update_booking_status_admin,
+    verify_employee_jwt_token,
+)
+from .serializers import (
+    AircraftSerializer,
+    CreateScheduleSerializer,
+    EmployeeLoginSerializer,
+    UpdateBookingStatusSerializer,
+)
+
+
+@api_view(["POST"])
+def admin_login_view(request):
+    serializer = EmployeeLoginSerializer(data=request.data)
+    if not serializer.is_valid():
+        return _error_response("Email and password are required.", status.HTTP_400_BAD_REQUEST, "INVALID_REQUEST")
+
+    try:
+        data = authenticate_employee(**serializer.validated_data)
+        return Response(data, status=status.HTTP_200_OK)
+    except ApiDomainError as error:
+        return _domain_error_response(error)
+
+
+@api_view(["GET"])
+def admin_me_view(request):
+    try:
+        token = _extract_bearer_token(request)
+        payload = verify_employee_jwt_token(token)
+        return Response({"employee": payload})
+    except ApiDomainError as error:
+        return _domain_error_response(error)
+
+
+@api_view(["GET", "POST"])
+def admin_aircraft_view(request):
+    try:
+        token = _extract_bearer_token(request)
+        if request.method == "GET":
+            verify_employee_jwt_token(token)
+            return Response(fetch_all_aircraft())
+
+        if request.method == "POST":
+            verify_employee_jwt_token(token, required_role="Admin")
+            serializer = AircraftSerializer(data=request.data)
+            if not serializer.is_valid():
+                return _error_response("Invalid aircraft payload.", status.HTTP_400_BAD_REQUEST, "INVALID_REQUEST")
+            aircraft = create_aircraft(serializer.validated_data)
+            return Response(aircraft, status=status.HTTP_201_CREATED)
+    except ApiDomainError as error:
+        return _domain_error_response(error)
+
+
+@api_view(["DELETE"])
+def admin_aircraft_detail_view(request, aircraft_id):
+    try:
+        token = _extract_bearer_token(request)
+        verify_employee_jwt_token(token, required_role="Admin")
+        res = delete_aircraft(aircraft_id)
+        return Response(res, status=status.HTTP_200_OK)
+    except ApiDomainError as error:
+        return _domain_error_response(error)
+
+
+@api_view(["GET", "POST"])
+def admin_schedules_view(request):
+    try:
+        token = _extract_bearer_token(request)
+        if request.method == "GET":
+            verify_employee_jwt_token(token)
+            return Response(fetch_all_schedules_admin())
+
+        if request.method == "POST":
+            verify_employee_jwt_token(token, required_role="Admin")
+            serializer = CreateScheduleSerializer(data=request.data)
+            if not serializer.is_valid():
+                return _error_response("Invalid schedule payload.", status.HTTP_400_BAD_REQUEST, "INVALID_REQUEST")
+            schedule = create_schedule_admin(serializer.validated_data)
+            return Response(schedule, status=status.HTTP_201_CREATED)
+    except ApiDomainError as error:
+        return _domain_error_response(error)
+
+
+@api_view(["DELETE"])
+def admin_schedule_detail_view(request, schedule_id):
+    try:
+        token = _extract_bearer_token(request)
+        verify_employee_jwt_token(token, required_role="Admin")
+        res = delete_schedule_admin(schedule_id)
+        return Response(res, status=status.HTTP_200_OK)
+    except ApiDomainError as error:
+        return _domain_error_response(error)
+
+
+@api_view(["GET"])
+def admin_bookings_view(request):
+    try:
+        token = _extract_bearer_token(request)
+        verify_employee_jwt_token(token)
+        return Response(fetch_all_bookings_admin())
+    except ApiDomainError as error:
+        return _domain_error_response(error)
+
+
+@api_view(["PUT"])
+def admin_booking_update_view(request, booking_id):
+    try:
+        token = _extract_bearer_token(request)
+        payload = verify_employee_jwt_token(token)
+        serializer = UpdateBookingStatusSerializer(data=request.data)
+        if not serializer.is_valid():
+            return _error_response("Invalid status payload.", status.HTTP_400_BAD_REQUEST, "INVALID_REQUEST")
+
+        res = update_booking_status_admin(
+            employee_id=payload["employee_id"],
+            booking_id=booking_id,
+            status=serializer.validated_data["status"],
+            notes=serializer.validated_data.get("notes", ""),
+        )
+        return Response(res, status=status.HTTP_200_OK)
+    except ApiDomainError as error:
+        return _domain_error_response(error)
+
+
+@api_view(["GET"])
+def admin_audit_logs_view(request):
+    try:
+        token = _extract_bearer_token(request)
+        verify_employee_jwt_token(token)
+        return Response(fetch_audit_logs())
+    except ApiDomainError as error:
+        return _domain_error_response(error)
+
+

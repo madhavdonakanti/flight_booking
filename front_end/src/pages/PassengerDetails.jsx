@@ -107,8 +107,11 @@ function PassengerDetails() {
 
     const allValid = normalizedPassengers.every(isPassengerComplete);
 
-    if (!allValid) {
-      setFormError('Please complete all passenger details before continuing.');
+    const todayStr = new Date().toISOString().split('T')[0];
+    const futureBirthDate = normalizedPassengers.some((p) => p.birth_date > todayStr);
+
+    if (futureBirthDate) {
+      setFormError('Passenger birth date cannot be in the future.');
       return;
     }
 
@@ -226,6 +229,7 @@ function PassengerDetails() {
                       </span>
                       <input
                         type="date"
+                        max={new Date().toISOString().split('T')[0]}
                         value={passenger.birth_date}
                         onChange={(event) =>
                           handlePassengerFieldChange(index, 'birth_date', event.target.value)

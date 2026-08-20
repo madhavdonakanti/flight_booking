@@ -15,35 +15,12 @@ class User(models.Model):
         return f"{self.first_name} {self.last_name} ({self.email})"
 
 
-class TravelAgency(models.Model):
-    agency_id = models.AutoField(primary_key=True)
-    agency_name = models.CharField(max_length=255)
-    contact_email = models.EmailField(unique=True)
-    contact_phone = models.CharField(max_length=50)
-    commission_rate = models.DecimalField(max_digits=5, decimal_places=4)
-
-    def __str__(self):
-        return self.agency_name
-
-
 class Booking(models.Model):
     booking_id = models.AutoField(primary_key=True)
-    user = models.ForeignKey(User, on_delete=models.SET_NULL, blank=True, null=True, related_name="bookings")
-    agency = models.ForeignKey(TravelAgency, on_delete=models.SET_NULL, blank=True, null=True, related_name="bookings")
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name="bookings")
     booking_date = models.DateTimeField(db_index=True)
     total_price = models.DecimalField(max_digits=10, decimal_places=2)
     booking_status = models.CharField(max_length=50)
-
-    class Meta:
-        constraints = [
-            models.CheckConstraint(
-                check=(
-                    (models.Q(user__isnull=False) & models.Q(agency__isnull=True)) |
-                    (models.Q(user__isnull=True) & models.Q(agency__isnull=False))
-                ),
-                name="chk_booking_owner",
-            )
-        ]
 
     def __str__(self):
         return f"Booking #{self.booking_id} - {self.booking_status}"
@@ -173,6 +150,7 @@ class Employee(models.Model):
     first_name = models.CharField(max_length=255)
     last_name = models.CharField(max_length=255)
     email = models.EmailField(unique=True)
+    password_hash = models.CharField(max_length=255, blank=True, null=True)
     hire_date = models.DateField()
 
     def __str__(self):

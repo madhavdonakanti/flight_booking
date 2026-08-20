@@ -336,6 +336,15 @@ def finalize_booking(payload):
                 p_last = passenger_payload["last_name"].strip()
                 p_dob = passenger_payload["birth_date"]
                 p_passport = passenger_payload.get("passport_number")
+                if isinstance(p_dob, str):
+                    from datetime import date
+                    try:
+                        p_dob = date.fromisoformat(p_dob)
+                    except ValueError:
+                        raise RequestValidationError("Passenger date of birth must be a valid YYYY-MM-DD date.")
+
+                if p_dob > timezone.now().date():
+                    raise RequestValidationError("Passenger date of birth cannot be in the future.")
 
                 if p_passport:
                     passenger = Passenger.objects.filter(passport_number=p_passport).first()
@@ -433,6 +442,7 @@ def generate_jwt_token(user_id: int, email: str) -> str:
     payload = {
         "user_id": user_id,
         "email": email.lower(),
+        "token_type": "user",
         "exp": int(time.time()) + (7200),  # 2 hours token validity
     }
 
@@ -443,7 +453,7 @@ def generate_jwt_token(user_id: int, email: str) -> str:
     payload_b64 = _b64url_encode(payload_json)
 
     signing_input = f"{header_b64}.{payload_b64}".encode("utf-8")
-    secret = str(getattr(settings, "SECRET_KEY", "default-secret-key")).encode("utf-8")
+    secret = str(settings.SECRET_KEY).encode("utf-8")
     signature = hmac.new(secret, signing_input, hashlib.sha256).digest()
     signature_b64 = _b64url_encode(signature)
 
@@ -460,7 +470,7 @@ def verify_jwt_token(token: str) -> dict:
 
     header_b64, payload_b64, signature_b64 = parts
     signing_input = f"{header_b64}.{payload_b64}".encode("utf-8")
-    secret = str(getattr(settings, "SECRET_KEY", "default-secret-key")).encode("utf-8")
+    secret = str(settings.SECRET_KEY).encode("utf-8")
     expected_sig = _b64url_encode(hmac.new(secret, signing_input, hashlib.sha256).digest())
 
     if not hmac.compare_digest(signature_b64, expected_sig):
@@ -476,13 +486,19 @@ def verify_jwt_token(token: str) -> dict:
     if exp and int(exp) < int(time.time()):
         raise UnauthorizedError("Authentication token has expired. Please log in again.")
 
+    if payload.get("token_type") != "user" or payload.get("is_employee"):
+        raise UnauthorizedError("Token is not a valid user authentication token.")
+
     return payload
 
 
 def register_user(name: str, email: str, phone: str, password: str) -> dict:
     normalized_email = email.strip().lower()
     first_name, last_name = _split_name(name)
-    clean_phone = phone.strip()
+    clean_phone = re.sub(r"\D", "", phone or "")
+
+    if len(clean_phone) != 10:
+        raise RequestValidationError("Phone number must contain exactly 10 digits.")
 
     if len(password) < 6:
         raise RequestValidationError("Password must be at least 6 characters long.")
