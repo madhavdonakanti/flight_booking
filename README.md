@@ -4,7 +4,7 @@ SkyWay Airlines is a full-stack flight reservation system and internal administr
 
 ---
 
-## ✈️ System Overview
+## System Overview
 
 The application consists of two main portals:
 
@@ -24,7 +24,7 @@ The application consists of two main portals:
 
 ---
 
-## 🚨 CRITICAL DEPLOYMENT INSTRUCTIONS (Render / Cloud)
+## CRITICAL DEPLOYMENT INSTRUCTIONS (Render / Cloud)
 
 > [!IMPORTANT]
 > **Set `DJANGO_DEBUG=False` before deploying to Render!**
@@ -36,7 +36,7 @@ The application consists of two main portals:
 
 ---
 
-## ⚙️ Render Deployment Environment Variables
+## Render Deployment Environment Variables
 
 Configure the following environment variables in your Render Web Service dashboard:
 
@@ -60,7 +60,7 @@ Configure the following environment variables in your Render Web Service dashboa
 
 ---
 
-## 💻 Local Development Setup
+## Local Development Setup
 
 ### 1. Backend Setup (Django + DRF)
 
